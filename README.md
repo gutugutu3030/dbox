@@ -2,6 +2,8 @@
 
 `dbox` は [Docker Sandboxes (`sbx`)](https://docs.docker.com/desktop/features/sandbox/) の軽量ラッパーCLIです。
 
+![おもしろ画像](./description.png)
+
 ## 概要
 
 `dbox` は以下の課題を解決します：
