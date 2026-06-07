@@ -15,6 +15,7 @@ import (
 
 var initAgent string
 var initLang string
+var initPublish []string
 
 // initCmd はプロジェクトの初期化とサンドボックス作成を行う
 var initCmd = &cobra.Command{
@@ -29,6 +30,7 @@ sbx create を実行してサンドボックスを作成します。`,
 func init() {
 	initCmd.Flags().StringVarP(&initAgent, "agent", "a", "", "使用するAIエージェント (opencode, codex, claude など)")
 	initCmd.Flags().StringVarP(&initLang, "lang", "l", "auto", "使用言語 (auto:自動検出, node, go, node,python などカンマ区切りで複数指定可)")
+	initCmd.Flags().StringArrayVar(&initPublish, "publish", nil, "ポートを公開 (複数指定可, 例: 8080 または 3000:8080)")
 }
 
 // runInit は init コマンドのメイン処理
@@ -94,17 +96,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// sbx create を実行
 	sb := sandbox.NewRunner(dryRun)
 	params := sandbox.CreateParams{
-		Name:     sandboxName,
-		Template: projectCfg.Template,
-		Agent:    agent,
-		Path:     absDir,
-		Clone:    true,
-		CPUs:     projectCfg.Resources.CPUs,
-		Memory:   projectCfg.Resources.Memory,
+		Name:         sandboxName,
+		Template:     projectCfg.Template,
+		Agent:        agent,
+		Path:         absDir,
+		Clone:        true,
+		CPUs:         projectCfg.Resources.CPUs,
+		Memory:       projectCfg.Resources.Memory,
+		PublishPorts: initPublish,
 	}
 
 	if _, err := sb.Create(params); err != nil {
 		return fmt.Errorf("サンドボックスの作成に失敗: %w", err)
+	}
+
+	// ポート公開
+	if err := publishPorts(sb, sandboxName, initPublish); err != nil {
+		return err
 	}
 
 	fmt.Printf("サンドボックス %s を作成しました\n", sandboxName)
@@ -225,4 +233,15 @@ func findTemplatesDir() string {
 		fmt.Fprintf(os.Stderr, "警告: 組み込みテンプレートの展開に失敗: %v\n", err)
 	}
 	return candidate
+}
+
+// publishPorts はサンドボックスのポートを公開する
+func publishPorts(sb *sandbox.Runner, sandboxName string, ports []string) error {
+	for _, p := range ports {
+		fmt.Printf("ポート %s を公開中...\n", p)
+		if err := sb.PortPublish(sandboxName, p); err != nil {
+			return fmt.Errorf("ポート %s の公開に失敗: %w", p, err)
+		}
+	}
+	return nil
 }

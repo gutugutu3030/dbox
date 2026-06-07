@@ -179,4 +179,10 @@ func TestDryRunMode(t *testing.T) {
 	if err != nil {
 		t.Errorf("TemplateRemove() with DryRun エラー: %v", err)
 	}
+
+	// PortPublish (DryRun)
+	err = r.PortPublish("test", "8080")
+	if err != nil {
+		t.Errorf("PortPublish() with DryRun エラー: %v", err)
+	}
 }

@@ -37,13 +37,14 @@ func (r *Runner) sbxExec(args ...string) (string, error) {
 
 // CreateParams は sbx create のパラメータ
 type CreateParams struct {
-	Name     string
-	Template string
-	Agent    string
-	Path     string
-	Clone    bool
-	CPUs     int
-	Memory   string
+	Name         string
+	Template     string
+	Agent        string
+	Path         string
+	Clone        bool
+	CPUs         int
+	Memory       string
+	PublishPorts []string // 作成後に公開するポート [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]
 }
 
 // Create はサンドボックスを作成する
@@ -68,6 +69,13 @@ func (r *Runner) Create(params CreateParams) (string, error) {
 
 	args = append(args, params.Agent, params.Path)
 	return r.sbxExec(args...)
+}
+
+// PortPublish はサンドボックスのポートを公開する。
+// portSpec の形式: [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]
+func (r *Runner) PortPublish(sandboxName, portSpec string) error {
+	_, err := r.sbxExec("ports", sandboxName, "--publish", portSpec)
+	return err
 }
 
 // ListOutput は sbx ls の出力の1行を表す

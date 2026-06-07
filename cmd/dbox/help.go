@@ -94,6 +94,9 @@ const helpExamples = `  主な使用例:
     # サンドボックスを起動（nvim が開く）
     dbox start
 
+    # ポートを公開して起動
+    dbox start --publish 3000:8080
+
     # サンドボックス内でコマンド実行
     dbox exec "node --version"
 
@@ -141,6 +144,12 @@ func init() {
 
   # サンドボックス名を指定
   dbox start dbox-opencode-my-project
+
+  # ポートを公開して起動（ホストポート 3000 → コンテナ 8080）
+  dbox start --publish 3000:8080
+
+  # 複数ポートを公開
+  dbox start --publish 3000:8080 --publish 9090
 
   # dry-run モードで確認
   dbox start --dry-run`)

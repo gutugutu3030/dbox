@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var startPublish []string
+
 // startCmd はサンドボックスを起動する
 var startCmd = &cobra.Command{
 	Use:   "start [sandbox-name]",
@@ -20,11 +22,14 @@ var startCmd = &cobra.Command{
 	RunE: runStart,
 }
 
+func init() {
+	startCmd.Flags().StringArrayVar(&startPublish, "publish", nil, "ポートを公開 (複数指定可, 例: 8080 または 3000:8080)")
+}
+
 // runStart は start コマンドのメイン処理
 func runStart(cmd *cobra.Command, args []string) error {
 	sb := sandbox.NewRunner(dryRun)
 
-	// サンドボックス名を決定
 	var name string
 	if len(args) > 0 {
 		name = args[0]
@@ -54,27 +59,35 @@ func runStart(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf(".dbox.yaml が見つかりません: %w", err)
 		}
 		params := sandbox.CreateParams{
-			Name:     name,
-			Template: projectCfg.Template,
-			Agent:    projectCfg.Agent,
-			Path:     ".",
-			Clone:    projectCfg.Clone,
-			CPUs:     projectCfg.Resources.CPUs,
-			Memory:   projectCfg.Resources.Memory,
+			Name:         name,
+			Template:     projectCfg.Template,
+			Agent:        projectCfg.Agent,
+			Path:         ".",
+			Clone:        projectCfg.Clone,
+			CPUs:         projectCfg.Resources.CPUs,
+			Memory:       projectCfg.Resources.Memory,
+			PublishPorts: startPublish,
 		}
 		if _, err := sb.Create(params); err != nil {
+			return err
+		}
+		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
 		return sb.Run(name)
 
 	case sandboxInfo.Status == "stopped":
-		// 停止中の場合、sbx run で起動＆アタッチ
 		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
+		if err := publishPorts(sb, name, startPublish); err != nil {
+			return err
+		}
 		return sb.Run(name)
 
 	default:
-		// running またはその他の状態 → アタッチ
 		fmt.Printf("サンドボックス %s にアタッチします...\n", name)
+		if err := publishPorts(sb, name, startPublish); err != nil {
+			return err
+		}
 		return sb.Run(name)
 	}
 }
