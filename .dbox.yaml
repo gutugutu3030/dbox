@@ -8,3 +8,5 @@ clone: true
 resources:
     cpus: 0
     memory: ""
+network:
+    allowed_domains: []

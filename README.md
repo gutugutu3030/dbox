@@ -191,6 +191,34 @@ template:
   registry: docker/sandbox-templates
 ```
 
+### ネットワークポリシー設定
+
+Docker Sandboxes のネットワークポリシーにより、サンドボックスから外部への通信はデフォルトで制限されます。
+`.dbox.yaml` の `network.allowed_domains` に許可したいホストを指定してください。
+
+- **エージェント既定値**: エージェントに応じたドメイン（例: opencode → `opencode.ai:443`）は自動で許可されます
+- **ユーザー追加**: ユーザーが `network.allowed_domains` に指定したドメインはエージェント既定値に追加して許可されます
+- **適用タイミング**: `dbox init` / `dbox start` 実行時に `sbx policy allow network` で適用されます
+
+```yaml
+# 特定のホストのみ許可（推奨）
+network:
+    allowed_domains:
+        - internal-api.example.com:443      # 社内APIサーバー
+        - "*.internal.tools:443"            # 社内ツールの全サブドメイン
+
+# 特定のホスト + パッケージレジストリを許可
+# network:
+#     allowed_domains:
+#         - opencode.ai:443                 # opencode エージェント（自動追加されるため通常は不要）
+#         - github.com:443                  # GitHub
+#         - registry.npmjs.org:443          # npm レジストリ
+
+# 全通信を許可（セキュリティ注意）
+# network:
+#     allowed_domains:
+#         - "**"                            # すべての外部ホストへの通信を許可
+
 ### プロジェクト設定: `.dbox.yaml`（プロジェクトルートに自動生成）
 
 ```yaml
@@ -205,6 +233,10 @@ clone: true
 resources:
     cpus: 0       # 0 = auto
     memory: ""    # 空文字 = sbx デフォルト
+network:
+    allowed_domains:
+        - opencode.ai:443      # エージェント通信の許可（opencode は自動追加）
+        - internal.example.com:443   # 社内ツール等へのアクセス
 ```
 
 ---

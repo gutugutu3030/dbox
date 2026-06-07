@@ -77,14 +77,23 @@ func runStart(cmd *cobra.Command, args []string) error {
 		if err := syncNvimConfig(sb, name); err != nil {
 			return err
 		}
+		if err := applyNetworkPolicies(sb, name, "."); err != nil {
+			return err
+		}
 	} else if sandboxInfo.Status == "stopped" {
 		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
+		if err := applyNetworkPolicies(sb, name, "."); err != nil {
+			return err
+		}
 	} else {
 		fmt.Printf("サンドボックス %s にアタッチします...\n", name)
 		if err := publishPorts(sb, name, startPublish); err != nil {
+			return err
+		}
+		if err := applyNetworkPolicies(sb, name, "."); err != nil {
 			return err
 		}
 	}

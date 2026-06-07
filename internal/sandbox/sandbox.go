@@ -78,6 +78,17 @@ func (r *Runner) PortPublish(sandboxName, portSpec string) error {
 	return err
 }
 
+// PolicyAllowNetwork はサンドボックスに特定ホストへのネットワークアクセスを許可する
+func (r *Runner) PolicyAllowNetwork(sandboxName string, domains []string) error {
+	if len(domains) == 0 {
+		return nil
+	}
+	args := []string{"policy", "allow", "network", sandboxName}
+	args = append(args, domains...)
+	_, err := r.sbxExec(args...)
+	return err
+}
+
 // CopyToSandbox はホストのファイル/ディレクトリをサンドボックス内にコピーする。
 // followSymlinks が true の場合、シンボリックリンクを実体としてコピーする
 func (r *Runner) CopyToSandbox(src, sandboxDst, sandboxName string, followSymlinks bool) error {

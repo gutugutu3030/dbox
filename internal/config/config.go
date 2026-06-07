@@ -37,6 +37,22 @@ type ProjectConfig struct {
 	SandboxName string         `yaml:"sandbox_name"`
 	Clone       bool           `yaml:"clone"`
 	Resources   ResourceConfig `yaml:"resources"`
+	Network     NetworkConfig  `yaml:"network"`
+}
+
+// NetworkConfig はサンドボックスのネットワークポリシー設定を定義
+type NetworkConfig struct {
+	AllowedDomains []string `yaml:"allowed_domains"`
+}
+
+// AgentDefaultDomains はエージェント別のデフォルト許可ドメインを返す
+func AgentDefaultDomains(agent string) []string {
+	switch agent {
+	case "opencode":
+		return []string{"opencode.ai:443"}
+	default:
+		return nil
+	}
 }
 
 // ResourceConfig はサンドボックスのリソース制限を定義
@@ -70,6 +86,30 @@ func DefaultProjectConfig() *ProjectConfig {
 			Memory: "",
 		},
 	}
+}
+
+// MergeDomains は allowed_domains のユーザー指定とエージェント既定値をマージする
+func MergeDomains(cfg *ProjectConfig) []string {
+	seen := make(map[string]struct{})
+	var result []string
+
+	// エージェント既定値を先に追加
+	for _, d := range AgentDefaultDomains(cfg.Agent) {
+		if _, ok := seen[d]; !ok {
+			seen[d] = struct{}{}
+			result = append(result, d)
+		}
+	}
+
+	// ユーザー指定を追加（重複排除）
+	for _, d := range cfg.Network.AllowedDomains {
+		if _, ok := seen[d]; !ok {
+			seen[d] = struct{}{}
+			result = append(result, d)
+		}
+	}
+
+	return result
 }
 
 // GlobalConfigDir はグローバル設定ディレクトリのパスを返す

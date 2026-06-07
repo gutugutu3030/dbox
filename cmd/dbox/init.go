@@ -122,6 +122,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// ネットワークポリシーを適用
+	if err := applyNetworkPolicies(sb, sandboxName, absDir); err != nil {
+		return err
+	}
+
 	fmt.Printf("サンドボックス %s を作成しました\n", sandboxName)
 	if initNvim {
 		fmt.Println("nvim を起動します...")
@@ -264,6 +269,26 @@ func publishPorts(sb *sandbox.Runner, sandboxName string, ports []string) error 
 		if err := sb.PortPublish(sandboxName, p); err != nil {
 			return fmt.Errorf("ポート %s の公開に失敗: %w", p, err)
 		}
+	}
+	return nil
+}
+
+// applyNetworkPolicies は .dbox.yaml の network.allowed_domains に基づき
+// サンドボックスのネットワークポリシーを適用する
+func applyNetworkPolicies(sb *sandbox.Runner, sandboxName, dir string) error {
+	projectCfg, err := config.LoadProjectConfig(dir)
+	if err != nil {
+		return fmt.Errorf(".dbox.yaml の読み込みに失敗: %w", err)
+	}
+
+	domains := config.MergeDomains(projectCfg)
+	if len(domains) == 0 {
+		return nil
+	}
+
+	fmt.Printf("ネットワークポリシーを適用中 (許可ドメイン: %v)...\n", domains)
+	if err := sb.PolicyAllowNetwork(sandboxName, domains); err != nil {
+		return fmt.Errorf("ネットワークポリシーの適用に失敗: %w", err)
 	}
 	return nil
 }
