@@ -46,8 +46,7 @@ func (b *Builder) dockerBuild(tag, dockerfile, contextDir string) error {
 	return nil
 }
 
-// BuildBase はベースイメージをビルドする。
-// base.Dockerfile を元に nvim がインストールされたイメージを作成する
+// BuildBase はベースイメージをビルドする
 func (b *Builder) BuildBase() error {
 	dockerfile := filepath.Join(b.TemplatesDir, "base.Dockerfile")
 	if _, err := os.Stat(dockerfile); err != nil {

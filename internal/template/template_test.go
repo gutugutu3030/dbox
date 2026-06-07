@@ -68,7 +68,7 @@ func TestBuildLang_WithDockerfile(t *testing.T) {
 
 	// base.Dockerfile と node.Dockerfile を作成
 	baseDockerfile := `FROM ubuntu:24.04
-RUN apt-get update && apt-get install -y neovim git curl
+RUN apt-get update && apt-get install -y git curl
 `
 	nodeDockerfile := `FROM dbox-base:latest
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs
@@ -171,7 +171,7 @@ func TestCompose_SingleLang(t *testing.T) {
 
 	// base.Dockerfile を作成
 	baseDockerfile := `FROM ubuntu:24.04
-RUN apt-get update && apt-get install -y neovim git curl
+RUN apt-get update && apt-get install -y git curl
 `
 	if err := os.WriteFile(filepath.Join(dir, "base.Dockerfile"), []byte(baseDockerfile), 0644); err != nil {
 		t.Fatalf("base.Dockerfile 作成に失敗: %v", err)

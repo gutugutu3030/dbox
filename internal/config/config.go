@@ -13,14 +13,8 @@ const CommandName = "dbox"
 
 // GlobalConfig は ~/.config/dbox/config.yaml の構造体
 type GlobalConfig struct {
-	DefaultAgent string       `yaml:"default_agent"`
-	Nvim         NvimConfig   `yaml:"nvim"`
+	DefaultAgent string         `yaml:"default_agent"`
 	Template     TemplateConfig `yaml:"template"`
-}
-
-// NvimConfig は nvim 設定の同期元を定義
-type NvimConfig struct {
-	ConfigSource string `yaml:"config_source"`
 }
 
 // TemplateConfig はテンプレートに関する既定値を定義
@@ -65,9 +59,6 @@ type ResourceConfig struct {
 func DefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
 		DefaultAgent: "opencode",
-		Nvim: NvimConfig{
-			ConfigSource: filepath.Join(os.Getenv("HOME"), ".config", "nvim"),
-		},
 		Template: TemplateConfig{
 			Registry: "docker/sandbox-templates",
 		},
@@ -233,12 +224,3 @@ func SaveProjectConfig(dir string, cfg *ProjectConfig) error {
 	return nil
 }
 
-// NvimConfigDir は nvim 設定のコピー先ディレクトリパスを返す
-func NvimConfigDir() (string, error) {
-	dir, err := GlobalConfigDir()
-	if err != nil {
-		return "", err
-	}
-	nvimDir := filepath.Join(dir, "nvim")
-	return nvimDir, nil
-}

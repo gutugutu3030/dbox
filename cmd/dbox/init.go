@@ -16,7 +16,6 @@ import (
 var initAgent string
 var initLang string
 var initPublish []string
-var initNvim bool
 
 // initCmd はプロジェクトの初期化とサンドボックス作成を行う
 var initCmd = &cobra.Command{
@@ -32,7 +31,6 @@ func init() {
 	initCmd.Flags().StringVarP(&initAgent, "agent", "a", "", "使用するAIエージェント (opencode, codex, claude など)")
 	initCmd.Flags().StringVarP(&initLang, "lang", "l", "auto", "使用言語 (auto:自動検出, node, go, node,python などカンマ区切りで複数指定可)")
 	initCmd.Flags().StringArrayVar(&initPublish, "publish", nil, "ポートを公開 (複数指定可, 例: 8080 または 3000:8080)")
-	initCmd.Flags().BoolVar(&initNvim, "nvim", false, "初期化後に nvim で起動する")
 }
 
 // runInit は init コマンドのメイン処理
@@ -117,21 +115,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// nvim 設定を sandbox にコピー
-	if err := syncNvimConfig(sb, sandboxName); err != nil {
-		return err
-	}
-
 	// ネットワークポリシーを適用
 	if err := applyNetworkPolicies(sb, sandboxName, absDir); err != nil {
 		return err
 	}
 
 	fmt.Printf("サンドボックス %s を作成しました\n", sandboxName)
-	if initNvim {
-		fmt.Println("nvim を起動します...")
-		return sb.RunCommand(sandboxName, "nvim")
-	}
 	fmt.Printf("  dbox start でサンドボックスを起動できます\n")
 	return nil
 }
@@ -249,17 +238,6 @@ func findTemplatesDir() string {
 		fmt.Fprintf(os.Stderr, "警告: 組み込みテンプレートの展開に失敗: %v\n", err)
 	}
 	return candidate
-}
-
-// syncNvimConfig はホストの nvim 設定をサンドボックス内にコピーする。
-// シンボリックリンクは実体としてコピー（--follow-link）
-func syncNvimConfig(sb *sandbox.Runner, sandboxName string) error {
-	nvimDir := filepath.Join(os.Getenv("HOME"), ".config", "nvim")
-	if _, err := os.Stat(nvimDir); err != nil {
-		return nil // nvim 設定がない場合はスキップ
-	}
-	fmt.Println("nvim 設定をサンドボックスにコピー中...")
-	return sb.CopyToSandbox(nvimDir, "/home/agent/.config/nvim", sandboxName, true)
 }
 
 // publishPorts はサンドボックスのポートを公開する

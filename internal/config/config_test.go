@@ -25,9 +25,6 @@ func TestDefaultGlobalConfig(t *testing.T) {
 	if cfg.DefaultAgent != "opencode" {
 		t.Errorf("DefaultAgent = %q, want %q", cfg.DefaultAgent, "opencode")
 	}
-	if cfg.Nvim.ConfigSource == "" {
-		t.Error("Nvim.ConfigSource が空です")
-	}
 	if cfg.Template.Registry != "docker/sandbox-templates" {
 		t.Errorf("Template.Registry = %q, want %q", cfg.Template.Registry, "docker/sandbox-templates")
 	}
@@ -67,9 +64,6 @@ func TestLoadSaveGlobalConfig(t *testing.T) {
 	// 設定を保存
 	cfg := &GlobalConfig{
 		DefaultAgent: "codex",
-		Nvim: NvimConfig{
-			ConfigSource: "/tmp/test-nvim",
-		},
 		Template: TemplateConfig{
 			Registry: "my-registry",
 		},
@@ -94,8 +88,8 @@ func TestLoadSaveGlobalConfig(t *testing.T) {
 	if loaded.DefaultAgent != "codex" {
 		t.Errorf("DefaultAgent = %q, want %q", loaded.DefaultAgent, "codex")
 	}
-	if loaded.Nvim.ConfigSource != "/tmp/test-nvim" {
-		t.Errorf("Nvim.ConfigSource = %q, want %q", loaded.Nvim.ConfigSource, "/tmp/test-nvim")
+	if loaded.Template.Registry != "my-registry" {
+		t.Errorf("Template.Registry = %q, want %q", loaded.Template.Registry, "my-registry")
 	}
 }
 
@@ -258,20 +252,3 @@ func TestEnsureGlobalConfigDir(t *testing.T) {
 	}
 }
 
-// TestNvimConfigDir は nvim 設定ディレクトリのパスが正しいことを確認する
-func TestNvimConfigDir(t *testing.T) {
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	tmpHome := tempDir(t)
-	os.Setenv("HOME", tmpHome)
-
-	dir, err := NvimConfigDir()
-	if err != nil {
-		t.Fatalf("NvimConfigDir() エラー: %v", err)
-	}
-
-	expected := filepath.Join(tmpHome, ".config", "dbox", "nvim")
-	if dir != expected {
-		t.Errorf("NvimConfigDir() = %q, want %q", dir, expected)
-	}
-}

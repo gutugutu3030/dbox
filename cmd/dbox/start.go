@@ -10,7 +10,6 @@ import (
 )
 
 var startPublish []string
-var startNvim bool
 
 // startCmd はサンドボックスを起動する
 var startCmd = &cobra.Command{
@@ -25,7 +24,6 @@ var startCmd = &cobra.Command{
 
 func init() {
 	startCmd.Flags().StringArrayVar(&startPublish, "publish", nil, "ポートを公開 (複数指定可, 例: 8080 または 3000:8080)")
-	startCmd.Flags().BoolVar(&startNvim, "nvim", false, "nvim で起動する（デフォルト: sbx run）")
 }
 
 // runStart は start コマンドのメイン処理
@@ -74,9 +72,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
-		if err := syncNvimConfig(sb, name); err != nil {
-			return err
-		}
 		if err := applyNetworkPolicies(sb, name, "."); err != nil {
 			return err
 		}
@@ -98,8 +93,5 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if startNvim {
-		return sb.RunCommand(name, "nvim")
-	}
 	return sb.Run(name)
 }

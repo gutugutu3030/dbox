@@ -193,7 +193,7 @@ func TestDryRunMode(t *testing.T) {
 	}
 
 	// RunCommand (DryRun)
-	err = r.RunCommand("test", "nvim")
+	err = r.RunCommand("test", "echo hello")
 	if err != nil {
 		t.Errorf("RunCommand() with DryRun エラー: %v", err)
 	}
