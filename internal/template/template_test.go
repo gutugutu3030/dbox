@@ -119,25 +119,6 @@ func TestBuildAll(t *testing.T) {
 	}
 }
 
-// TestEnsureNvimConfig は nvim 設定ディレクトリが存在しない場合にスキップされることを確認する
-func TestEnsureNvimConfig(t *testing.T) {
-	// HOME を一時ディレクトリに設定
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
-	tmpHome, err := os.MkdirTemp("", "dbox-nvim-test-*")
-	if err != nil {
-		t.Fatalf("テンポラリディレクトリ作成に失敗: %v", err)
-	}
-	defer os.RemoveAll(tmpHome)
-	os.Setenv("HOME", tmpHome)
-
-	// nvim 設定がない状態ではスキップされる
-	if err := EnsureNvimConfig(); err != nil {
-		t.Errorf("EnsureNvimConfig() エラー: %v", err)
-	}
-}
-
 // TestNewComposer は Composer が正しく作成されることを確認する
 func TestNewComposer(t *testing.T) {
 	b := NewBuilder("/tmp/templates", true)

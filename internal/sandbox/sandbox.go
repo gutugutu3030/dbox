@@ -78,6 +78,18 @@ func (r *Runner) PortPublish(sandboxName, portSpec string) error {
 	return err
 }
 
+// CopyToSandbox はホストのファイル/ディレクトリをサンドボックス内にコピーする。
+// followSymlinks が true の場合、シンボリックリンクを実体としてコピーする
+func (r *Runner) CopyToSandbox(src, sandboxDst, sandboxName string, followSymlinks bool) error {
+	args := []string{"cp"}
+	if followSymlinks {
+		args = append(args, "-L")
+	}
+	args = append(args, src, fmt.Sprintf("%s:%s", sandboxName, sandboxDst))
+	_, err := r.sbxExec(args...)
+	return err
+}
+
 // ListOutput は sbx ls の出力の1行を表す
 type ListOutput struct {
 	Name      string
@@ -147,6 +159,24 @@ func (r *Runner) FindByName(name string) (*ListOutput, error) {
 // Run はサンドボックスにアタッチする
 func (r *Runner) Run(name string) error {
 	args := []string{"run", name}
+	cmd := exec.Command("sbx", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if r.DryRun {
+		fmt.Printf("[dry-run] sbx %s\n", strings.Join(args, " "))
+		return nil
+	}
+
+	return cmd.Run()
+}
+
+// RunCommand はサンドボックス内で対話的にコマンドを実行する。
+// サンドボックスが停止中の場合は自動で起動される
+func (r *Runner) RunCommand(name string, command ...string) error {
+	args := []string{"exec", "-i", "-t", name}
+	args = append(args, command...)
 	cmd := exec.Command("sbx", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

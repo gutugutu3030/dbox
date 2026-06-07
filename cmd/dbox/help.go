@@ -65,7 +65,7 @@ const helpUsage = `  使い方:
 
 const helpCommands = `  コマンド一覧:
     init      プロジェクトを初期化しサンドボックスを作成する
-    start     サンドボックスを起動する（デフォルト: nvim 起動）
+    start     サンドボックスを起動する（--nvim で nvim 起動）
     stop      サンドボックスを停止する
     prune     dbox 関連リソースをすべて削除する
     exec      サンドボックス内でコマンドを実行する
@@ -141,6 +141,9 @@ func init() {
 	startCmd.Example = strings.TrimSpace(`
   # カレントディレクトリのサンドボックスを起動
   dbox start
+
+  # nvim で起動
+  dbox start --nvim
 
   # サンドボックス名を指定
   dbox start dbox-opencode-my-project

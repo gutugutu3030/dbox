@@ -185,4 +185,16 @@ func TestDryRunMode(t *testing.T) {
 	if err != nil {
 		t.Errorf("PortPublish() with DryRun エラー: %v", err)
 	}
+
+	// CopyToSandbox (DryRun)
+	err = r.CopyToSandbox("/tmp/test-src", "/home/agent/test", "test", true)
+	if err != nil {
+		t.Errorf("CopyToSandbox() with DryRun エラー: %v", err)
+	}
+
+	// RunCommand (DryRun)
+	err = r.RunCommand("test", "nvim")
+	if err != nil {
+		t.Errorf("RunCommand() with DryRun エラー: %v", err)
+	}
 }

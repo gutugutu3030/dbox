@@ -1,0 +1,10 @@
+version: 2
+agent: opencode
+langs:
+    - go
+template: dbox-go
+sandbox_name: dbox-opencode-sbx-template
+clone: true
+resources:
+    cpus: 0
+    memory: ""

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	assets "github.com/gutugutu3030/sbx-template"
-	"github.com/gutugutu3030/sbx-template/internal/config"
 )
 
 // Builder はDockerテンプレートのビルドを担当する
@@ -47,82 +46,12 @@ func (b *Builder) dockerBuild(tag, dockerfile, contextDir string) error {
 	return nil
 }
 
-// EnsureNvimConfig は ~/.config/nvim の設定を ~/.config/dbox/nvim/ にコピーする。
-// コピー先が既に存在する場合はスキップする
-func EnsureNvimConfig() error {
-	cfg, err := config.LoadGlobalConfig()
-	if err != nil {
-		return err
-	}
-
-	src := cfg.Nvim.ConfigSource
-	if src == "" {
-		return nil
-	}
-
-	dst, err := config.NvimConfigDir()
-	if err != nil {
-		return err
-	}
-
-	if _, err := os.Stat(dst); err == nil {
-		return nil
-	}
-
-	if _, err := os.Stat(src); err != nil {
-		return nil
-	}
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("cp", "-r", src, dst)
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("nvim 設定のコピーに失敗 (%s -> %s): %w", src, dst, err)
-	}
-
-	return nil
-}
-
-// ensureNvimConfigInContext は nvim 設定をビルドコンテキストに配置する。
-// base.Dockerfile が COPY nvim/ を実行するため、コンテキストに nvim/ が必要。
-// ユーザーの nvim 設定があればそれをコピーし、なければ空ディレクトリを作成する
-func (b *Builder) ensureNvimConfigInContext() error {
-	contextNvimDir := filepath.Join(b.TemplatesDir, "nvim")
-	if _, err := os.Stat(contextNvimDir); err == nil {
-		return nil
-	}
-
-	nvimDir, err := config.NvimConfigDir()
-	if err == nil {
-		if _, err := os.Stat(nvimDir); err == nil {
-			cmd := exec.Command("cp", "-r", nvimDir, contextNvimDir)
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err == nil {
-				return nil
-			}
-		}
-	}
-
-	return os.MkdirAll(contextNvimDir, 0755)
-}
-
 // BuildBase はベースイメージをビルドする。
 // base.Dockerfile を元に nvim がインストールされたイメージを作成する
 func (b *Builder) BuildBase() error {
-	if err := EnsureNvimConfig(); err != nil {
-		return err
-	}
-
 	dockerfile := filepath.Join(b.TemplatesDir, "base.Dockerfile")
 	if _, err := os.Stat(dockerfile); err != nil {
 		return fmt.Errorf("base.Dockerfile が見つかりません: %w", err)
-	}
-
-	if err := b.ensureNvimConfigInContext(); err != nil {
-		return err
 	}
 
 	tag := "dbox-base:latest"

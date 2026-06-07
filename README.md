@@ -65,6 +65,9 @@ dbox start
 # サンドボックス内でコマンド実行
 dbox exec "go version"
 
+# nvim で起動
+dbox start --nvim
+
 # サンドボックスを停止
 dbox stop
 
@@ -94,6 +97,7 @@ dbox start --dry-run
 | `--agent` | `-a` | グローバル設定の値 | 使用するAIエージェント |
 | `--lang` | `-l` | `auto` | 使用言語（autoで自動検出, `node,go`のように複数指定可） |
 | `--publish` | | | ポートを公開（複数指定可, 例: `8080` または `3000:8080`） |
+| `--nvim` | | `false` | 初期化後に nvim で起動する |
 | `--dry-run` | `-n` | `false` | 実際のコマンドを実行せず表示のみ |
 
 **言語検出ロジック**（多言語対応）：
@@ -121,6 +125,7 @@ dbox start --dry-run
 | フラグ | 説明 |
 |--------|------|
 | `--publish` | ポートを公開（複数指定可, 例: `8080` または `3000:8080`） |
+| `--nvim` | コーディングエージェントではなく nvim で起動する |
 
 ### `dbox stop [sandbox-name]`
 

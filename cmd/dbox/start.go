@@ -10,6 +10,7 @@ import (
 )
 
 var startPublish []string
+var startNvim bool
 
 // startCmd はサンドボックスを起動する
 var startCmd = &cobra.Command{
@@ -24,6 +25,7 @@ var startCmd = &cobra.Command{
 
 func init() {
 	startCmd.Flags().StringArrayVar(&startPublish, "publish", nil, "ポートを公開 (複数指定可, 例: 8080 または 3000:8080)")
+	startCmd.Flags().BoolVar(&startNvim, "nvim", false, "nvim で起動する（デフォルト: sbx run）")
 }
 
 // runStart は start コマンドのメイン処理
@@ -50,9 +52,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	switch {
-	case sandboxInfo == nil:
-		// サンドボックスが存在しない場合、新規作成
+	if sandboxInfo == nil {
 		fmt.Printf("サンドボックス %s が見つかりません。新規作成します...\n", name)
 		projectCfg, err := config.LoadProjectConfig(".")
 		if err != nil {
@@ -74,20 +74,23 @@ func runStart(cmd *cobra.Command, args []string) error {
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
-		return sb.Run(name)
-
-	case sandboxInfo.Status == "stopped":
+		if err := syncNvimConfig(sb, name); err != nil {
+			return err
+		}
+	} else if sandboxInfo.Status == "stopped" {
 		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
-		return sb.Run(name)
-
-	default:
+	} else {
 		fmt.Printf("サンドボックス %s にアタッチします...\n", name)
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
-		return sb.Run(name)
 	}
+
+	if startNvim {
+		return sb.RunCommand(name, "nvim")
+	}
+	return sb.Run(name)
 }
