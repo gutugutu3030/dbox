@@ -69,6 +69,7 @@ const helpCommands = `  コマンド一覧:
     stop      サンドボックスを停止する
     prune     dbox 関連リソースをすべて削除する
     exec      サンドボックス内でコマンドを実行する
+    mcp       MCP サーバーを管理する (add, remove, ls)
     template  テンプレートを管理する (build, ls)
     help      このヘルプを表示する
 
@@ -79,19 +80,22 @@ const helpCommands = `  コマンド一覧:
 `
 
 const helpExamples = `  主な使用例:
-    # カレントディレクトリの言語を自動検出し初期化
+    # カレントディレクトリの言語を自動検出し初期化（対話的にエージェント・MCPを選択）
     dbox init
 
     # エージェントと言語を指定
     dbox init --agent=codex --lang=python
 
+    # MCP サーバーを指定
+    dbox init --mcp=gitnexus,context7
+
+    # 非対話モード（すべて既定値で実行）
+    dbox init -y
+
     # 複数言語を指定（TypeScript + Go など）
     dbox init --lang=node,go
 
-    # 特定のディレクトリを指定
-    dbox init --agent=opencode ./my-project
-
-    # サンドボックスを起動（nvim が開く）
+    # サンドボックスを起動
     dbox start
 
     # ポートを公開して起動
@@ -99,6 +103,12 @@ const helpExamples = `  主な使用例:
 
     # サンドボックス内でコマンド実行
     dbox exec "node --version"
+
+    # MCP サーバーを追加
+    dbox mcp add gitnexus @anthropic/gitnexus
+
+    # MCP サーバー一覧
+    dbox mcp ls
 
     # 複数言語の合成テンプレートをビルド
     dbox template build --lang=node,go
@@ -123,11 +133,20 @@ const helpFooter = `  設定ファイル:
 func init() {
 	// 各コマンドに使用例を追加して --help を充実させる
 	initCmd.Example = strings.TrimSpace(`
-  # カレントディレクトリの言語を自動検出
+  # カレントディレクトリの言語を自動検出（対話的にエージェント・MCPを選択）
   dbox init
 
   # エージェントと言語を指定
   dbox init --agent=codex --lang=python
+
+  # MCP サーバーを指定（対話スキップ）
+  dbox init --mcp=gitnexus,context7
+
+  # MCP サーバーなし
+  dbox init --no-mcp
+
+  # 非対話モード（すべて既定値で実行）
+  dbox init -y
 
   # 複数言語を指定（TypeScript + Go）
   dbox init --lang=node,go

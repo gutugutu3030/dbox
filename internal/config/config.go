@@ -32,6 +32,19 @@ type ProjectConfig struct {
 	Clone       bool           `yaml:"clone"`
 	Resources   ResourceConfig `yaml:"resources"`
 	Network     NetworkConfig  `yaml:"network"`
+	MCP         MCPConfig      `yaml:"mcp,omitempty"`
+}
+
+// MCPConfig は MCP サーバーの設定を定義
+type MCPConfig struct {
+	Servers []MCPServer `yaml:"servers,omitempty"`
+}
+
+// MCPServer は個別の MCP サーバー設定を定義
+type MCPServer struct {
+	Name    string   `yaml:"name"`
+	Package string   `yaml:"package"`
+	Domains []string `yaml:"domains,omitempty"`
 }
 
 // NetworkConfig はサンドボックスのネットワークポリシー設定を定義

@@ -32,5 +32,6 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(pruneCmd)
 	rootCmd.AddCommand(execCmd)
+	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(templateCmd)
 }

@@ -10,6 +10,7 @@ type SandboxOperator interface {
 	Stop(name string) error
 	Remove(name string) error
 	Run(name string) error
+	Exec(sandboxName, command string) (string, error)
 	WaitForExec(name string, timeout time.Duration) error
 	PortPublish(sandboxName, portSpec string) error
 	PolicyAllowNetwork(sandboxName string, domains []string) error

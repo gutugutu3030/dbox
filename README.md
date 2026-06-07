@@ -22,6 +22,7 @@
 | `dbox stop --all` | `dbox-` で始まる全サンドボックスを一括停止 |
 | `dbox prune` | `dbox-` 関連リソース（sandbox/template/image）を一掃 |
 | `dbox exec <cmd>` | サンドボックス内でコマンド実行 |
+| `dbox mcp` | MCP サーバーを管理する (add, remove, ls) |
 | `dbox template build --lang=<lang>` | 言語別 Docker イメージをビルド |
 | `dbox template ls` | sbx テンプレート一覧を表示 |
 
@@ -53,11 +54,14 @@ mv dbox /usr/local/bin/
 ## クイックスタート
 
 ```bash
-# カレントディレクトリの言語を自動検出して初期化
+# カレントディレクトリの言語を自動検出して初期化（対話的にエージェント・MCPを選択）
 dbox init
 
-# エージェントと言語を指定（複数言語はカンマ区切り）
-dbox init --agent=opencode --lang=node,go
+# エージェントと言語、MCP をまとめて指定（対話スキップ）
+dbox init --agent=opencode --lang=node,go --mcp=gitnexus,context7
+
+# 非対話モード（すべて既定値で実行）
+dbox init -y
 
 # サンドボックスを起動
 dbox start
@@ -65,6 +69,11 @@ dbox start
 # サンドボックス内でコマンド実行
 dbox exec "go version"
 
+# MCP サーバーを追加
+dbox mcp add gitnexus @anthropic/gitnexus
+
+# MCP サーバー一覧
+dbox mcp ls
 
 # サンドボックスを停止
 dbox stop
@@ -90,12 +99,16 @@ dbox start --dry-run
 
 プロジェクトを初期化し、サンドボックスを作成します。
 
+`--agent`, `--mcp` フラグを省略すると、対話的にエージェントと MCP サーバーを選択できます。
+
 | フラグ | 短縮 | 既定値 | 説明 |
 |--------|------|--------|------|
 | `--agent` | `-a` | グローバル設定の値 | 使用するAIエージェント |
 | `--lang` | `-l` | `auto` | 使用言語（autoで自動検出, `node,go`のように複数指定可） |
+| `--mcp` | | | MCP サーバーを指定（カンマ区切り, 例: `gitnexus,context7`） |
+| `--no-mcp` | | `false` | MCP サーバーを追加しない |
 | `--publish` | | | ポートを公開（複数指定可, 例: `8080` または `3000:8080`） |
-
+| `--yes` | `-y` | `false` | すべての入力を既定値で進める（非対話モード） |
 | `--dry-run` | `-n` | `false` | 実際のコマンドを実行せず表示のみ |
 
 **言語検出ロジック**（多言語対応）：
@@ -146,6 +159,32 @@ dbox start --dry-run
 dbox exec "go version"
 dbox exec "node --version"
 dbox exec "ls -la /workspace"
+```
+
+### `dbox mcp <command>`
+
+MCP（Model Context Protocol）サーバーを管理します。AI エージェント（opencode）がサンドボックス内で利用するツールを追加・削除・一覧表示します。
+
+| サブコマンド | 説明 |
+|-------------|------|
+| `mcp add <name> <package>` | MCP サーバーを `.dbox.yaml` に追加 |
+| `mcp remove <name>` | MCP サーバーを `.dbox.yaml` から削除 |
+| `mcp ls` | MCP サーバー一覧（プリセット + 登録済み）を表示 |
+
+| フラグ | 説明 |
+|--------|------|
+| `--domain` | MCP サーバーが必要とするネットワークドメイン（複数指定可, `mcp add` のみ） |
+
+例：
+```bash
+# MCP サーバーを追加
+dbox mcp add gitnexus @anthropic/gitnexus --domain=api.github.com:443
+
+# MCP サーバー一覧
+dbox mcp ls
+
+# MCP サーバーを削除
+dbox mcp remove context7
 ```
 
 ### `dbox template build --lang=<lang>`
@@ -235,6 +274,16 @@ network:
     allowed_domains:
         - opencode.ai:443      # エージェント通信の許可（opencode は自動追加）
         - internal.example.com:443   # 社内ツール等へのアクセス
+mcp:
+    servers:
+        - name: gitnexus
+          package: "@anthropic/gitnexus"
+          domains:
+              - api.github.com:443
+        - name: context7
+          package: "@upstash/context7-mcp"
+          domains:
+              - api.context7.com:443
 ```
 
 ---
@@ -247,12 +296,19 @@ dbox init
      → 設定ファイルスキャン: package.json, go.mod, ...
      → 拡張子スキャン: .go, .ts, .py, ...
      → MultiResult{ Languages: [go, node], TemplateName: "dbox-go-node" }
+  → ★ 対話的プロンプト（フラグ未指定時のみ）
+     → 言語確認
+     → AI エージェント選択
+     → MCP サーバー選択（プリセット or カスタム npx）
   → テンプレート確認 & ビルド
      → sbx template ls でキャッシュ確認
      → なければ docker build (base.Dockerfile + snippets/*.snippet)
      → docker save | sbx template load で sbx に登録
-  → .dbox.yaml 保存 (version: 2, langs: [go, node])
+  → .dbox.yaml 保存 (version: 2, langs: [go, node], mcp: [gitnexus, ...])
   → sbx create --template=dbox-go-node opencode /path
+  → ★ MCP セットアップ（サーバーが指定されている場合）
+     → sbx exec "npm install -g @anthropic/gitnexus ..."
+     → .opencode/config.json の mcp セクションを生成
 ```
 
 ### テンプレート階層
@@ -289,15 +345,19 @@ docker/sandbox-templates:opencode-docker (sbx 公式ベース)
 ├── cmd/dbox/
 │   ├── main.go       # エントリポイント、rootCmd
 │   ├── init.go       # init コマンド（言語検出、テンプレート確認、sbx create）
+│   ├── init_interactive.go  # 対話的プロンプト・MCPセットアップ
 │   ├── start.go      # start コマンド
 │   ├── stop.go       # stop / stop --all コマンド
 │   ├── prune.go      # prune コマンド（全リソース一掃）
 │   ├── exec.go       # exec コマンド
+│   ├── mcp.go        # mcp コマンド (add, remove, ls)
 │   ├── template.go   # template build/ls コマンド
 │   └── help.go       # カスタムヘルプ出力
 ├── internal/
 │   ├── config/       # 設定ファイルの読み書き（yaml）
 │   ├── detect/       # 多言語検出ロジック（設定ファイル + 拡張子）
+│   ├── mcp/          # MCPプリセット定義・opencode設定生成
+│   ├── prompt/       # 対話的プロンプト（survey/v2 ラッパー）
 │   ├── sandbox/      # sbx コマンドラッパー
 │   └── template/     # Docker ビルド、スニペット合成
 ├── templates/

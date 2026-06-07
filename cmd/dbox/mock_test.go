@@ -25,6 +25,7 @@ type MockSandboxOperator struct {
 	StopFunc         func(name string) error
 	RemoveFunc       func(name string) error
 	RunFunc          func(name string) error
+	ExecFunc         func(sandboxName, command string) (string, error)
 	WaitForExecFunc  func(name string, timeout time.Duration) error
 	PortPublishFunc  func(sandboxName, portSpec string) error
 	PolicyAllowFunc  func(sandboxName string, domains []string) error
@@ -106,6 +107,14 @@ func (m *MockSandboxOperator) Run(name string) error {
 		return m.RunFunc(name)
 	}
 	return nil
+}
+
+func (m *MockSandboxOperator) Exec(sandboxName, command string) (string, error) {
+	m.record("Exec", sandboxName, command)
+	if m.ExecFunc != nil {
+		return m.ExecFunc(sandboxName, command)
+	}
+	return "", nil
 }
 
 func (m *MockSandboxOperator) WaitForExec(name string, timeout time.Duration) error {
