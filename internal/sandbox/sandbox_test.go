@@ -167,4 +167,16 @@ func TestDryRunMode(t *testing.T) {
 	if err != nil {
 		t.Errorf("HasTemplate() with DryRun エラー: %v", err)
 	}
+
+	// Remove (DryRun)
+	err = r.Remove("test")
+	if err != nil {
+		t.Errorf("Remove() with DryRun エラー: %v", err)
+	}
+
+	// TemplateRemove (DryRun)
+	err = r.TemplateRemove("dbox-test:latest")
+	if err != nil {
+		t.Errorf("TemplateRemove() with DryRun エラー: %v", err)
+	}
 }

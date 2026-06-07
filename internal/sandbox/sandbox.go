@@ -164,6 +164,12 @@ func (r *Runner) Stop(name string) error {
 	return err
 }
 
+// Remove はサンドボックスを強制削除する
+func (r *Runner) Remove(name string) error {
+	_, err := r.sbxExec("rm", "--force", name)
+	return err
+}
+
 // Exec はサンドボックス内でコマンドを実行する
 func (r *Runner) Exec(name string, command string) (string, error) {
 	args := []string{"exec", name}
@@ -200,6 +206,12 @@ func (r *Runner) HasTemplate(name string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// TemplateRemove は指定したテンプレートを sbx から削除する
+func (r *Runner) TemplateRemove(tag string) error {
+	_, err := r.sbxExec("template", "rm", tag)
+	return err
 }
 
 // TemplateSave はDockerイメージをエクスポートし、sbxテンプレートとしてロードする

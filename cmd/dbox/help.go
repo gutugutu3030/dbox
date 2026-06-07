@@ -67,6 +67,7 @@ const helpCommands = `  コマンド一覧:
     init      プロジェクトを初期化しサンドボックスを作成する
     start     サンドボックスを起動する（デフォルト: nvim 起動）
     stop      サンドボックスを停止する
+    prune     dbox 関連リソースをすべて削除する
     exec      サンドボックス内でコマンドを実行する
     template  テンプレートを管理する (build, ls)
     help      このヘルプを表示する
@@ -101,6 +102,9 @@ const helpExamples = `  主な使用例:
 
     # 全テンプレートをビルド
     dbox template build --lang=all
+
+    # 全 dbox リソースを一掃
+    dbox prune
 
     # 詳細は dbox help <command> または dbox <command> --help
 
@@ -146,7 +150,10 @@ func init() {
   dbox stop
 
   # サンドボックス名を指定
-  dbox stop dbox-opencode-my-project`)
+  dbox stop dbox-opencode-my-project
+
+  # dbox- で始まる全サンドボックスを停止
+  dbox stop --all`)
 
 	execCmd.Example = strings.TrimSpace(`
   # サンドボックス内でコマンド実行
