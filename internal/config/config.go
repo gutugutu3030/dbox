@@ -223,4 +223,3 @@ func SaveProjectConfig(dir string, cfg *ProjectConfig) error {
 	}
 	return nil
 }
-

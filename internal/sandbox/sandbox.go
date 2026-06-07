@@ -101,10 +101,13 @@ func (r *Runner) PolicyAllowNetwork(sandboxName string, domains []string) error 
 	if len(domains) == 0 {
 		return nil
 	}
-	args := []string{"policy", "allow", "network", sandboxName}
-	args = append(args, domains...)
-	_, err := r.sbxExec(args...)
-	return err
+	for _, d := range domains {
+		args := []string{"policy", "allow", "network", sandboxName, d}
+		if _, err := r.sbxExec(args...); err != nil {
+			return fmt.Errorf("ドメイン %s の許可に失敗: %w", d, err)
+		}
+	}
+	return nil
 }
 
 // CopyToSandbox はホストのファイル/ディレクトリをサンドボックス内にコピーする。

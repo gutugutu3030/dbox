@@ -89,6 +89,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 		},
 	}
 
+	// 既存の .dbox.yaml があれば allowed_domains を引き継ぐ
+	if existingCfg, err := config.LoadProjectConfig(absDir); err == nil {
+		if len(existingCfg.Network.AllowedDomains) > 0 {
+			projectCfg.Network.AllowedDomains = existingCfg.Network.AllowedDomains
+		}
+	}
+
 	if err := config.SaveProjectConfig(absDir, projectCfg); err != nil {
 		return fmt.Errorf(".dbox.yaml の保存に失敗: %w", err)
 	}
@@ -96,6 +103,22 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// sbx create を実行
 	sb := sandbox.NewRunner(dryRun)
+
+	// 同名のサンドボックスが既に存在する場合は停止・削除する
+	existing, err := sb.FindByName(sandboxName)
+	if err != nil {
+		return fmt.Errorf("サンドボックスの確認に失敗: %w", err)
+	}
+	if existing != nil {
+		fmt.Printf("既存のサンドボックス %s を削除中...\n", sandboxName)
+		if err := sb.Stop(sandboxName); err != nil {
+			fmt.Fprintf(os.Stderr, "警告: サンドボックスの停止に失敗: %v\n", err)
+		}
+		if err := sb.Remove(sandboxName); err != nil {
+			return fmt.Errorf("既存のサンドボックス %s の削除に失敗: %w", sandboxName, err)
+		}
+	}
+
 	params := sandbox.CreateParams{
 		Name:         sandboxName,
 		Template:     projectCfg.Template,
@@ -122,7 +145,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// ネットワークポリシーを適用
-	if err := applyNetworkPolicies(sb, sandboxName, absDir); err != nil {
+	if err := applyNetworkPoliciesFromFile(sb, sandboxName, absDir); err != nil {
 		return err
 	}
 
@@ -247,7 +270,7 @@ func findTemplatesDir() string {
 }
 
 // publishPorts はサンドボックスのポートを公開する
-func publishPorts(sb *sandbox.Runner, sandboxName string, ports []string) error {
+func publishPorts(sb sandbox.SandboxOperator, sandboxName string, ports []string) error {
 	for _, p := range ports {
 		fmt.Printf("ポート %s を公開中...\n", p)
 		if err := sb.PortPublish(sandboxName, p); err != nil {
@@ -257,15 +280,8 @@ func publishPorts(sb *sandbox.Runner, sandboxName string, ports []string) error 
 	return nil
 }
 
-// applyNetworkPolicies は .dbox.yaml の network.allowed_domains に基づき
-// サンドボックスのネットワークポリシーを適用する
-func applyNetworkPolicies(sb *sandbox.Runner, sandboxName, dir string) error {
-	projectCfg, err := config.LoadProjectConfig(dir)
-	if err != nil {
-		return fmt.Errorf(".dbox.yaml の読み込みに失敗: %w", err)
-	}
-
-	domains := config.MergeDomains(projectCfg)
+// applyNetworkPolicies はドメインリストに基づきサンドボックスのネットワークポリシーを適用する
+func applyNetworkPolicies(sb sandbox.SandboxOperator, sandboxName string, domains []string) error {
 	if len(domains) == 0 {
 		return nil
 	}
@@ -275,4 +291,13 @@ func applyNetworkPolicies(sb *sandbox.Runner, sandboxName, dir string) error {
 		return fmt.Errorf("ネットワークポリシーの適用に失敗: %w", err)
 	}
 	return nil
+}
+
+// applyNetworkPoliciesFromFile は .dbox.yaml を読み込みネットワークポリシーを適用する
+func applyNetworkPoliciesFromFile(sb sandbox.SandboxOperator, sandboxName, dir string) error {
+	projectCfg, err := config.LoadProjectConfig(dir)
+	if err != nil {
+		return fmt.Errorf(".dbox.yaml の読み込みに失敗: %w", err)
+	}
+	return applyNetworkPolicies(sb, sandboxName, config.MergeDomains(projectCfg))
 }

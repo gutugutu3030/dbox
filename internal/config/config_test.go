@@ -235,6 +235,86 @@ func TestFindProjectConfig(t *testing.T) {
 	}
 }
 
+// TestMergeDomains はユーザー指定ドメインとエージェント既定値のマージを確認する
+func TestMergeDomains(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *ProjectConfig
+		expected []string
+	}{
+		{
+			name: "エージェント既定値のみ",
+			cfg: &ProjectConfig{
+				Agent:   "opencode",
+				Network: NetworkConfig{},
+			},
+			expected: []string{"opencode.ai:443"},
+		},
+		{
+			name: "ユーザー指定のみ",
+			cfg: &ProjectConfig{
+				Agent: "unknown",
+				Network: NetworkConfig{
+					AllowedDomains: []string{"example.com"},
+				},
+			},
+			expected: []string{"example.com"},
+		},
+		{
+			name: "両方あり（重複なし）",
+			cfg: &ProjectConfig{
+				Agent: "opencode",
+				Network: NetworkConfig{
+					AllowedDomains: []string{"example.com", "api.example.com"},
+				},
+			},
+			expected: []string{"opencode.ai:443", "example.com", "api.example.com"},
+		},
+		{
+			name: "重複あり（エージェント既定と同じドメインが指定された場合）",
+			cfg: &ProjectConfig{
+				Agent: "opencode",
+				Network: NetworkConfig{
+					AllowedDomains: []string{"opencode.ai:443"},
+				},
+			},
+			expected: []string{"opencode.ai:443"},
+		},
+		{
+			name: "全許可（**）",
+			cfg: &ProjectConfig{
+				Agent: "opencode",
+				Network: NetworkConfig{
+					AllowedDomains: []string{"**"},
+				},
+			},
+			expected: []string{"opencode.ai:443", "**"},
+		},
+		{
+			name: "エージェント既定値なし・ユーザー指定なし",
+			cfg: &ProjectConfig{
+				Agent:   "unknown",
+				Network: NetworkConfig{},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MergeDomains(tt.cfg)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("MergeDomains() = %v (len=%d), want %v (len=%d)", got, len(got), tt.expected, len(tt.expected))
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("MergeDomains()[%d] = %q, want %q", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
 // TestEnsureGlobalConfigDir は設定ディレクトリが作成されることを確認する
 func TestEnsureGlobalConfigDir(t *testing.T) {
 	origHome := os.Getenv("HOME")
@@ -251,4 +331,3 @@ func TestEnsureGlobalConfigDir(t *testing.T) {
 		t.Errorf("設定ディレクトリが作成されていません: %v", err)
 	}
 }
-

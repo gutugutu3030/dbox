@@ -105,6 +105,29 @@ func TestParseListOutput(t *testing.T) {
 	}
 }
 
+// TestPolicyAllowNetwork_EmptyDomains は空のドメインリストでエラーが発生しないことを確認する
+func TestPolicyAllowNetwork_EmptyDomains(t *testing.T) {
+	r := NewRunner(false)
+	if err := r.PolicyAllowNetwork("test-sandbox", nil); err != nil {
+		t.Errorf("PolicyAllowNetwork(nil) エラー: %v", err)
+	}
+	if err := r.PolicyAllowNetwork("test-sandbox", []string{}); err != nil {
+		t.Errorf("PolicyAllowNetwork([]) エラー: %v", err)
+	}
+}
+
+// TestPolicyAllowNetwork_MultipleDomains_DryRun は DryRun モードで複数ドメインが正常に処理されることを確認する
+func TestPolicyAllowNetwork_MultipleDomains_DryRun(t *testing.T) {
+	r := NewRunner(true)
+
+	// 3件のドメインを指定。DryRun では実際に sbx policy allow network は呼ばれないが、
+	// 各ドメインを個別にループ処理してエラーにならないことを確認
+	domains := []string{"opencode.ai:443", "example.com", "api.example.com"}
+	if err := r.PolicyAllowNetwork("test-sandbox", domains); err != nil {
+		t.Errorf("PolicyAllowNetwork() with DryRun エラー: %v", err)
+	}
+}
+
 // TestDryRunMode は DryRun モードでエラーが発生しないことを確認する
 func TestDryRunMode(t *testing.T) {
 	r := NewRunner(true)
