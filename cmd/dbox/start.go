@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gutugutu3030/sbx-template/internal/config"
 	"github.com/gutugutu3030/sbx-template/internal/sandbox"
@@ -69,29 +70,34 @@ func runStart(cmd *cobra.Command, args []string) error {
 		if _, err := sb.Create(params); err != nil {
 			return err
 		}
+		// 作成直後は DinD 初期化中で exec が使えない場合があるため待機
+		if err := sb.WaitForExec(name, 60*time.Second); err != nil {
+			return err
+		}
 		if err := publishPorts(sb, name, startPublish); err != nil {
 			return err
 		}
 		if err := applyNetworkPolicies(sb, name, "."); err != nil {
 			return err
 		}
-	} else if sandboxInfo.Status == "stopped" {
-		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
-		if err := publishPorts(sb, name, startPublish); err != nil {
-			return err
-		}
-		if err := applyNetworkPolicies(sb, name, "."); err != nil {
-			return err
-		}
-	} else {
-		fmt.Printf("サンドボックス %s にアタッチします...\n", name)
-		if err := publishPorts(sb, name, startPublish); err != nil {
-			return err
-		}
-		if err := applyNetworkPolicies(sb, name, "."); err != nil {
-			return err
-		}
+		return sb.Run(name)
 	}
 
+	if sandboxInfo.Status == "stopped" {
+		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
+		return sb.Run(name)
+	}
+
+	// running: コンテナは起動済みだが exec 準備ができるまで待機
+	fmt.Printf("サンドボックス %s にアタッチします...\n", name)
+	if err := sb.WaitForExec(name, 60*time.Second); err != nil {
+		return err
+	}
+	if err := publishPorts(sb, name, startPublish); err != nil {
+		return err
+	}
+	if err := applyNetworkPolicies(sb, name, "."); err != nil {
+		return err
+	}
 	return sb.Run(name)
 }

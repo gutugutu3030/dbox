@@ -209,6 +209,8 @@ network:
 #         - opencode.ai:443                 # opencode エージェント（自動追加されるため通常は不要）
 #         - github.com:443                  # GitHub
 #         - registry.npmjs.org:443          # npm レジストリ
+#         - archive.ubuntu.com:80           # apt-get (Ubuntu パッケージ)
+#         - security.ubuntu.com:80          # apt-get (セキュリティ更新)
 
 # 全通信を許可（セキュリティ注意）
 # network:

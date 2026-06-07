@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Runner は sbx コマンドの実行を抽象化する
@@ -69,6 +70,23 @@ func (r *Runner) Create(params CreateParams) (string, error) {
 
 	args = append(args, params.Agent, params.Path)
 	return r.sbxExec(args...)
+}
+
+// WaitForExec はサンドボックス内で exec が実行可能になるまで待機する。
+// リトライ間隔は 2 秒、タイムアウトは指定された duration で制御する
+func (r *Runner) WaitForExec(name string, timeout time.Duration) error {
+	if r.DryRun {
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		cmd := exec.Command("sbx", "exec", name, "echo", "ready")
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("exec の準備が整いませんでした（%v 経過）", timeout)
 }
 
 // PortPublish はサンドボックスのポートを公開する。

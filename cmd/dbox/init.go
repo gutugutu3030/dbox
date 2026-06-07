@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gutugutu3030/sbx-template/internal/config"
 	"github.com/gutugutu3030/sbx-template/internal/detect"
@@ -108,6 +109,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	if _, err := sb.Create(params); err != nil {
 		return fmt.Errorf("サンドボックスの作成に失敗: %w", err)
+	}
+
+	// 作成直後はコンテナ内 DinD 初期化中で exec が使えない場合があるため待機
+	if err := sb.WaitForExec(sandboxName, 60*time.Second); err != nil {
+		return err
 	}
 
 	// ポート公開
