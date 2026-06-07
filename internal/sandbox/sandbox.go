@@ -101,16 +101,23 @@ func (r *Runner) List() ([]ListOutput, error) {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) >= 5 {
-			lo := ListOutput{
-				Sandbox:   fields[0],
-				Agent:     fields[1],
-				Status:    fields[2],
-				Ports:     fields[3],
-				Workspace: strings.Join(fields[4:], " "),
-			}
-			result = append(result, lo)
+		// 最低4フィールド必要: name, agent, status, workspace
+		if len(fields) < 4 {
+			continue
 		}
+
+		lo := ListOutput{
+			Sandbox:   fields[0],
+			Agent:     fields[1],
+			Status:    fields[2],
+			Ports:     "",
+			Workspace: fields[len(fields)-1],
+		}
+		// PORTS カラムがある場合 (5フィールド以上)
+		if len(fields) >= 5 {
+			lo.Ports = strings.Join(fields[3:len(fields)-1], " ")
+		}
+		result = append(result, lo)
 	}
 	return result, nil
 }
@@ -147,7 +154,7 @@ func (r *Runner) Run(name string) error {
 
 // Start は停止中のサンドボックスを起動する
 func (r *Runner) Start(name string) error {
-	_, err := r.sbxExec("start", name)
+	_, err := r.sbxExec("run", name)
 	return err
 }
 
@@ -159,7 +166,9 @@ func (r *Runner) Stop(name string) error {
 
 // Exec はサンドボックス内でコマンドを実行する
 func (r *Runner) Exec(name string, command string) (string, error) {
-	return r.sbxExec("exec", name, command)
+	args := []string{"exec", name}
+	args = append(args, strings.Fields(command)...)
+	return r.sbxExec(args...)
 }
 
 // TemplateList はテンプレート一覧を取得する
@@ -167,16 +176,61 @@ func (r *Runner) TemplateList() (string, error) {
 	return r.sbxExec("template", "ls")
 }
 
-// TemplateSave はサンドボックスをテンプレートとして保存する
-func (r *Runner) TemplateSave(tag string) (string, error) {
-	return r.sbxExec("template", "save", tag)
-}
-
-// HasTemplate は指定されたテンプレートが存在するか確認する
-func (r *Runner) HasTemplate(templateName string) (bool, error) {
+// HasTemplate は指定されたテンプレート名が sbx に存在するか確認する
+func (r *Runner) HasTemplate(name string) (bool, error) {
 	out, err := r.TemplateList()
 	if err != nil {
 		return false, err
 	}
-	return strings.Contains(out, templateName), nil
+	// "dbox-go:latest" という名前を "dbox-go" でもマッチさせる
+	// sbx template ls の出力: "dbox-go  latest  IMAGE_ID  ..."
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "REPOSITORY") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			repo := fields[0]
+			tag := fields[1]
+			fullName := repo + ":" + tag
+			if repo == name || fullName == name {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// TemplateSave はDockerイメージをエクスポートし、sbxテンプレートとしてロードする
+func (r *Runner) TemplateSave(tag string) error {
+	if r.DryRun {
+		fmt.Printf("[dry-run] docker save %s | sbx template load\n", tag)
+		return nil
+	}
+
+	tmpFile, err := os.CreateTemp("", "dbox-template-*.tar")
+	if err != nil {
+		return fmt.Errorf("一時ファイル作成に失敗: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	// docker save -o でエクスポート
+	saveArgs := []string{"save", "-o", tmpPath, tag}
+	saveCmd := exec.Command("docker", saveArgs...)
+	saveCmd.Stderr = os.Stderr
+	if err := saveCmd.Run(); err != nil {
+		return fmt.Errorf("Dockerイメージ %s のエクスポートに失敗: %w", tag, err)
+	}
+
+	// sbx template load でインポート
+	_, err = r.sbxExec("template", "load", tmpPath)
+	if err != nil {
+		return fmt.Errorf("sbxテンプレートのロードに失敗: %w", err)
+	}
+
+	fmt.Printf("テンプレート %s を sbx にロードしました\n", tag)
+	return nil
 }

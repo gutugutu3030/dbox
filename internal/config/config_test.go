@@ -36,14 +36,14 @@ func TestDefaultGlobalConfig(t *testing.T) {
 // TestDefaultProjectConfig はプロジェクト設定の既定値を確認する
 func TestDefaultProjectConfig(t *testing.T) {
 	cfg := DefaultProjectConfig()
-	if cfg.Version != 1 {
-		t.Errorf("Version = %d, want %d", cfg.Version, 1)
+	if cfg.Version != 2 {
+		t.Errorf("Version = %d, want %d", cfg.Version, 2)
 	}
 	if cfg.Agent != "opencode" {
 		t.Errorf("Agent = %q, want %q", cfg.Agent, "opencode")
 	}
-	if cfg.Lang != "base" {
-		t.Errorf("Lang = %q, want %q", cfg.Lang, "base")
+	if len(cfg.Langs) != 1 || cfg.Langs[0] != "base" {
+		t.Errorf("Langs = %v, want [base]", cfg.Langs)
 	}
 	if cfg.Clone != false {
 		t.Errorf("Clone = %v, want %v", cfg.Clone, false)
@@ -51,8 +51,8 @@ func TestDefaultProjectConfig(t *testing.T) {
 	if cfg.Resources.CPUs != 0 {
 		t.Errorf("Resources.CPUs = %d, want %d", cfg.Resources.CPUs, 0)
 	}
-	if cfg.Resources.Memory != "50%" {
-		t.Errorf("Resources.Memory = %q, want %q", cfg.Resources.Memory, "50%")
+	if cfg.Resources.Memory != "" {
+		t.Errorf("Resources.Memory = %q, want empty", cfg.Resources.Memory)
 	}
 }
 
@@ -120,9 +120,9 @@ func TestSaveProjectConfig(t *testing.T) {
 	dir := tempDir(t)
 
 	cfg := &ProjectConfig{
-		Version:     1,
+		Version:     2,
 		Agent:       "opencode",
-		Lang:        "node",
+		Langs:       []string{"node"},
 		Template:    "dbox-node",
 		SandboxName: "dbox-opencode-test-project",
 		Clone:       true,
@@ -156,8 +156,8 @@ func TestSaveProjectConfig(t *testing.T) {
 	if loaded.Agent != "opencode" {
 		t.Errorf("Agent = %q, want %q", loaded.Agent, "opencode")
 	}
-	if loaded.Lang != "node" {
-		t.Errorf("Lang = %q, want %q", loaded.Lang, "node")
+	if len(loaded.Langs) != 1 || loaded.Langs[0] != "node" {
+		t.Errorf("Langs = %v, want [node]", loaded.Langs)
 	}
 	if loaded.SandboxName != "dbox-opencode-test-project" {
 		t.Errorf("SandboxName = %q, want %q", loaded.SandboxName, "dbox-opencode-test-project")
@@ -171,7 +171,7 @@ func TestLoadProjectConfig(t *testing.T) {
 	// 設定ファイルを作成
 	cfg := DefaultProjectConfig()
 	cfg.Agent = "claude"
-	cfg.Lang = "python"
+	cfg.Langs = []string{"python"}
 	if err := SaveProjectConfig(dir, cfg); err != nil {
 		t.Fatalf("SaveProjectConfig() エラー: %v", err)
 	}
@@ -184,8 +184,8 @@ func TestLoadProjectConfig(t *testing.T) {
 	if loaded.Agent != "claude" {
 		t.Errorf("Agent = %q, want %q", loaded.Agent, "claude")
 	}
-	if loaded.Lang != "python" {
-		t.Errorf("Lang = %q, want %q", loaded.Lang, "python")
+	if len(loaded.Langs) != 1 || loaded.Langs[0] != "python" {
+		t.Errorf("Langs = %v, want [python]", loaded.Langs)
 	}
 }
 

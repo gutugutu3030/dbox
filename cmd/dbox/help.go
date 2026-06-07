@@ -84,6 +84,9 @@ const helpExamples = `  主な使用例:
     # エージェントと言語を指定
     dbox init --agent=codex --lang=python
 
+    # 複数言語を指定（TypeScript + Go など）
+    dbox init --lang=node,go
+
     # 特定のディレクトリを指定
     dbox init --agent=opencode ./my-project
 
@@ -92,6 +95,9 @@ const helpExamples = `  主な使用例:
 
     # サンドボックス内でコマンド実行
     dbox exec "node --version"
+
+    # 複数言語の合成テンプレートをビルド
+    dbox template build --lang=node,go
 
     # 全テンプレートをビルド
     dbox template build --lang=all
@@ -115,6 +121,9 @@ func init() {
 
   # エージェントと言語を指定
   dbox init --agent=codex --lang=python
+
+  # 複数言語を指定（TypeScript + Go）
+  dbox init --lang=node,go
 
   # 特定のディレクトリで初期化
   dbox init --agent=opencode ./my-project
@@ -151,6 +160,9 @@ func init() {
 
   # Node.js テンプレートをビルド
   dbox template build --lang=node
+
+  # 複数言語の合成テンプレートをビルド
+  dbox template build --lang=node,go
 
   # 全言語を一括ビルド
   dbox template build --lang=all

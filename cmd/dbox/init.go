@@ -28,7 +28,7 @@ sbx create を実行してサンドボックスを作成します。`,
 
 func init() {
 	initCmd.Flags().StringVarP(&initAgent, "agent", "a", "", "使用するAIエージェント (opencode, codex, claude など)")
-	initCmd.Flags().StringVarP(&initLang, "lang", "l", "auto", "使用言語 (auto:自動検出, node, python, go など)")
+	initCmd.Flags().StringVarP(&initLang, "lang", "l", "auto", "使用言語 (auto:自動検出, node, go, node,python などカンマ区切りで複数指定可)")
 }
 
 // runInit は init コマンドのメイン処理
@@ -44,7 +44,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// 言語を検出または指定された言語を使用
-	lang, err := resolveLanguage(absDir, initLang)
+	langs, err := resolveLanguages(absDir, initLang)
 	if err != nil {
 		return err
 	}
@@ -55,32 +55,41 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// テンプレート名を生成
+	templateName := detect.TemplateNameForLangs(langs)
+
 	// テンプレートの存在確認、なければビルド
-	if err := ensureTemplate(lang); err != nil {
+	if err := ensureTemplate(langs); err != nil {
 		return err
 	}
 
 	// サンドボックス名を生成
 	sandboxName := generateSandboxName(agent, absDir)
 
+	// 言語名を文字列配列に変換
+	langStrs := make([]string, len(langs))
+	for i, l := range langs {
+		langStrs[i] = string(l)
+	}
+
 	// プロジェクト設定を保存
 	projectCfg := &config.ProjectConfig{
-		Version:     1,
+		Version:     2,
 		Agent:       agent,
-		Lang:        string(lang),
-		Template:    detect.TemplateNameForLang(lang),
+		Langs:       langStrs,
+		Template:    templateName,
 		SandboxName: sandboxName,
 		Clone:       true,
 		Resources: config.ResourceConfig{
 			CPUs:   0,
-			Memory: "50%",
+			Memory: "",
 		},
 	}
 
 	if err := config.SaveProjectConfig(absDir, projectCfg); err != nil {
 		return fmt.Errorf(".dbox.yaml の保存に失敗: %w", err)
 	}
-	fmt.Printf(".dbox.yaml を作成しました (agent=%s, lang=%s)\n", agent, lang)
+	fmt.Printf(".dbox.yaml を作成しました (agent=%s, langs=%v)\n", agent, langStrs)
 
 	// sbx create を実行
 	sb := sandbox.NewRunner(dryRun)
@@ -103,20 +112,21 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// resolveLanguage は言語指定または自動検出により言語を決定する
-func resolveLanguage(dir, langFlag string) (detect.Language, error) {
+// resolveLanguages は言語指定または自動検出により言語を決定する
+func resolveLanguages(dir, langFlag string) ([]detect.Language, error) {
 	if langFlag != "auto" {
-		lang := detect.Language(langFlag)
-		if detect.TemplateNameForLang(lang) == "dbox-base" && lang != detect.LanguageBase {
-			return "", fmt.Errorf("不明な言語です: %s", langFlag)
+		// カンマ区切りで複数言語指定に対応
+		langs := detect.LangsFromString(langFlag)
+		if len(langs) == 0 {
+			return nil, fmt.Errorf("有効な言語が指定されていません: %s", langFlag)
 		}
-		return lang, nil
+		return langs, nil
 	}
 
 	// 自動検出
 	result := detect.Detect(dir)
-	fmt.Printf("言語検出結果: %s (確信度: %.0f%%)\n", result.Language, result.Confidence*100)
-	return result.Language, nil
+	fmt.Printf("言語検出結果: %v\n", result.Languages)
+	return result.Languages, nil
 }
 
 // resolveAgent はエージェント名を決定する。
@@ -133,10 +143,13 @@ func resolveAgent(agentFlag string) (string, error) {
 	return globalCfg.DefaultAgent, nil
 }
 
-// ensureTemplate は言語に対応するテンプレートが存在するか確認し、
-// なければ自動ビルドする
-func ensureTemplate(lang detect.Language) error {
-	tmplName := detect.TemplateNameForLang(lang)
+// ensureTemplate は言語に対応するテンプレートが sbx に存在するか確認し、
+// なければ Docker イメージをビルドして sbx にロードする
+func ensureTemplate(langs []detect.Language) error {
+	tmplName := detect.TemplateNameForLangs(langs)
+	tag := tmplName + ":latest"
+	templatesDir := findTemplatesDir()
+	builder := template.NewBuilder(templatesDir, dryRun)
 	sb := sandbox.NewRunner(dryRun)
 
 	exists, err := sb.HasTemplate(tmplName)
@@ -150,25 +163,29 @@ func ensureTemplate(lang detect.Language) error {
 
 	fmt.Printf("テンプレート %s が見つかりません。ビルドを開始します...\n", tmplName)
 
-	templatesDir := findTemplatesDir()
-	builder := template.NewBuilder(templatesDir, dryRun)
-
-	if lang == detect.LanguageBase {
-		if err := builder.BuildBase(); err != nil {
-			return err
+	if len(langs) == 1 {
+		lang := langs[0]
+		if lang == detect.LanguageBase {
+			if err := builder.BuildBase(); err != nil {
+				return err
+			}
+		} else {
+			if err := builder.BuildLang(string(lang)); err != nil {
+				return err
+			}
 		}
 	} else {
-		if err := builder.BuildLang(string(lang)); err != nil {
+		langStrs := make([]string, len(langs))
+		for i, l := range langs {
+			langStrs[i] = string(l)
+		}
+		composer := template.NewComposer(builder)
+		if _, err := composer.Compose(langStrs); err != nil {
 			return err
 		}
 	}
 
-	tag := tmplName + ":latest"
-	if err := builder.SaveTemplate(tag); err != nil {
-		return err
-	}
-
-	return nil
+	return sb.TemplateSave(tag)
 }
 
 // generateSandboxName はサンドボックス名を生成する
@@ -177,7 +194,9 @@ func generateSandboxName(agent, dir string) string {
 	return fmt.Sprintf("dbox-%s-%s", agent, base)
 }
 
-// findTemplatesDir は組み込みテンプレートディレクトリのパスを解決する
+// findTemplatesDir はテンプレートディレクトリのパスを解決する。
+// 既存のテンプレートディレクトリがない場合は、グローバル設定ディレクトリに
+// 埋め込みテンプレートを展開して使用する
 func findTemplatesDir() string {
 	// 実行ファイルからの相対パスを試す
 	execPath, err := os.Executable()
@@ -195,9 +214,15 @@ func findTemplatesDir() string {
 		return candidate
 	}
 
-	// グローバル設定ディレクトリ
+	// グローバル設定ディレクトリに展開
 	globalDir, _ := config.GlobalConfigDir()
 	candidate = filepath.Join(globalDir, "templates")
-	os.MkdirAll(candidate, 0755)
+	if err := os.MkdirAll(candidate, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: テンプレートディレクトリ作成に失敗: %v\n", err)
+		return candidate
+	}
+	if err := template.EnsureTemplatesExtracted(candidate); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 組み込みテンプレートの展開に失敗: %v\n", err)
+	}
 	return candidate
 }

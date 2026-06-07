@@ -68,11 +68,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return sb.Run(name)
 
 	case sandboxInfo.Status == "stopped":
-		// 停止中の場合、起動してからアタッチ
+		// 停止中の場合、sbx run で起動＆アタッチ
 		fmt.Printf("サンドボックス %s は停止中です。起動します...\n", name)
-		if err := sb.Start(name); err != nil {
-			return err
-		}
 		return sb.Run(name)
 
 	default:

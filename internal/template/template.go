@@ -2,11 +2,14 @@ package template
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	assets "github.com/gutugutu3030/sbx-template"
 	"github.com/gutugutu3030/sbx-template/internal/config"
 )
 
@@ -27,8 +30,8 @@ func NewBuilder(templatesDir string, dryRun bool) *Builder {
 }
 
 // dockerBuild は docker build を実行する
-func (b *Builder) dockerBuild(tag, dockerfile string) error {
-	args := []string{"build", "-t", tag, "-f", dockerfile, b.TemplatesDir}
+func (b *Builder) dockerBuild(tag, dockerfile, contextDir string) error {
+	args := []string{"build", "-t", tag, "-f", dockerfile, contextDir}
 	cmd := exec.Command("docker", args...)
 
 	if b.DryRun {
@@ -62,22 +65,18 @@ func EnsureNvimConfig() error {
 		return err
 	}
 
-	// コピー先が既に存在する場合はスキップ
 	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
 
-	// コピー元が存在しない場合はスキップ
 	if _, err := os.Stat(src); err != nil {
 		return nil
 	}
 
-	// nvim 設定ディレクトリを作成
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
 
-	// cp -r でコピー
 	cmd := exec.Command("cp", "-r", src, dst)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -85,6 +84,29 @@ func EnsureNvimConfig() error {
 	}
 
 	return nil
+}
+
+// ensureNvimConfigInContext は nvim 設定をビルドコンテキストに配置する。
+// base.Dockerfile が COPY nvim/ を実行するため、コンテキストに nvim/ が必要。
+// ユーザーの nvim 設定があればそれをコピーし、なければ空ディレクトリを作成する
+func (b *Builder) ensureNvimConfigInContext() error {
+	contextNvimDir := filepath.Join(b.TemplatesDir, "nvim")
+	if _, err := os.Stat(contextNvimDir); err == nil {
+		return nil
+	}
+
+	nvimDir, err := config.NvimConfigDir()
+	if err == nil {
+		if _, err := os.Stat(nvimDir); err == nil {
+			cmd := exec.Command("cp", "-r", nvimDir, contextNvimDir)
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err == nil {
+				return nil
+			}
+		}
+	}
+
+	return os.MkdirAll(contextNvimDir, 0755)
 }
 
 // BuildBase はベースイメージをビルドする。
@@ -99,8 +121,12 @@ func (b *Builder) BuildBase() error {
 		return fmt.Errorf("base.Dockerfile が見つかりません: %w", err)
 	}
 
+	if err := b.ensureNvimConfigInContext(); err != nil {
+		return err
+	}
+
 	tag := "dbox-base:latest"
-	if err := b.dockerBuild(tag, dockerfile); err != nil {
+	if err := b.dockerBuild(tag, dockerfile, b.TemplatesDir); err != nil {
 		return err
 	}
 
@@ -121,7 +147,7 @@ func (b *Builder) BuildLang(lang string) error {
 	}
 
 	tag := fmt.Sprintf("dbox-%s:latest", lang)
-	if err := b.dockerBuild(tag, dockerfile); err != nil {
+	if err := b.dockerBuild(tag, dockerfile, b.TemplatesDir); err != nil {
 		return err
 	}
 
@@ -129,39 +155,158 @@ func (b *Builder) BuildLang(lang string) error {
 	return nil
 }
 
-// SaveTemplate はビルドしたイメージを sbx テンプレートとして保存する
-func (b *Builder) SaveTemplate(tag string) error {
-	args := []string{"template", "save", tag}
-	cmd := exec.Command("sbx", args...)
-
-	if b.DryRun {
-		fmt.Printf("[dry-run] sbx %s\n", strings.Join(args, " "))
-		return nil
-	}
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("テンプレート %s の保存に失敗: %w", tag, err)
-	}
-
-	fmt.Printf("テンプレート %s を保存しました\n", tag)
-	return nil
-}
-
-// BuildAndSaveAll は全言語のテンプレートをビルドして保存する
-func (b *Builder) BuildAndSaveAll() error {
+// BuildAll は全言語のDockerイメージをビルドする
+func (b *Builder) BuildAll() error {
 	languages := []string{"node", "python", "java", "go", "rust", "ruby"}
 
 	for _, lang := range languages {
-		fmt.Printf("=== %s テンプレートをビルド中 ===\n", lang)
+		fmt.Printf("=== %s イメージをビルド中 ===\n", lang)
 		if err := b.BuildLang(lang); err != nil {
 			return err
 		}
+	}
 
-		tag := fmt.Sprintf("dbox-%s:latest", lang)
-		if err := b.SaveTemplate(tag); err != nil {
-			return err
+	return nil
+}
+
+// Composer は複数言語のスニペットを合成したイメージをビルドする
+type Composer struct {
+	Builder *Builder
+}
+
+// NewComposer は Composer を作成する
+func NewComposer(builder *Builder) *Composer {
+	return &Composer{Builder: builder}
+}
+
+// Compose は指定された言語群の合成Dockerイメージをビルドする。
+// 呼び出し元が sbx へのロードを行う
+func (c *Composer) Compose(langs []string) (string, error) {
+	if len(langs) == 0 {
+		return "", fmt.Errorf("言語が指定されていません")
+	}
+
+	if len(langs) == 1 && langs[0] == "base" {
+		return "dbox-base", nil
+	}
+
+	filtered := make([]string, 0, len(langs))
+	for _, lang := range langs {
+		if lang != "base" {
+			filtered = append(filtered, lang)
+		}
+	}
+	if len(filtered) == 0 {
+		return "dbox-base", nil
+	}
+
+	sort.Strings(filtered)
+	uniq := make([]string, 0, len(filtered))
+	seen := make(map[string]bool)
+	for _, lang := range filtered {
+		if !seen[lang] {
+			seen[lang] = true
+			uniq = append(uniq, lang)
+		}
+	}
+
+	imageName := "dbox-" + strings.Join(uniq, "-")
+	tag := imageName + ":latest"
+
+	if err := c.Builder.BuildBase(); err != nil {
+		return "", err
+	}
+
+	dockerfile, contextDir, err := c.generateCompositeDockerfile(uniq)
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(contextDir)
+
+	if err := c.Builder.dockerBuild(tag, dockerfile, contextDir); err != nil {
+		return "", err
+	}
+
+	return imageName, nil
+}
+
+// generateCompositeDockerfile は複数言語のスニペットを合成した Dockerfile を生成する
+func (c *Composer) generateCompositeDockerfile(langs []string) (dockerfile string, contextDir string, err error) {
+	contextDir, err = os.MkdirTemp("", "dbox-compose-*")
+	if err != nil {
+		return "", "", fmt.Errorf("一時ディレクトリ作成に失敗: %w", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("FROM dbox-base:latest\n\n")
+
+	for _, lang := range langs {
+		snippetPath := filepath.Join(c.Builder.TemplatesDir, "snippets", lang+".snippet")
+		data, err := os.ReadFile(snippetPath)
+		if err != nil {
+			os.RemoveAll(contextDir)
+			return "", "", fmt.Errorf("%s のスニペットが見つかりません: %w", lang, err)
+		}
+		sb.WriteString(fmt.Sprintf("# %s\n%s\n\n", lang, string(data)))
+	}
+
+	sb.WriteString("WORKDIR /workspace\n")
+
+	dockerfile = filepath.Join(contextDir, "Dockerfile")
+	if err := os.WriteFile(dockerfile, []byte(sb.String()), 0644); err != nil {
+		os.RemoveAll(contextDir)
+		return "", "", fmt.Errorf("Dockerfile 書き込みに失敗: %w", err)
+	}
+
+	return dockerfile, contextDir, nil
+}
+
+// ensureFile は埋め込みFSからファイルを読み込み、書き出し先にコピーする。
+// 書き出し先が既に存在する場合はスキップする
+func ensureFile(fsys fs.FS, src, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	}
+	data, err := fs.ReadFile(fsys, src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
+}
+
+// EnsureTemplatesExtracted は埋め込みテンプレートを指定ディレクトリにコピーする。
+// 既に存在するファイルはスキップする
+func EnsureTemplatesExtracted(dstDir string) error {
+	entries, err := assets.Templates.ReadDir("templates")
+	if err != nil {
+		return fmt.Errorf("埋め込みテンプレートの読み取りに失敗: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			if entry.Name() == "snippets" {
+				snippetEntries, err := assets.Templates.ReadDir("templates/snippets")
+				if err != nil {
+					return fmt.Errorf("埋め込みスニペットの読み取りに失敗: %w", err)
+				}
+				snipDst := filepath.Join(dstDir, "snippets")
+				if err := os.MkdirAll(snipDst, 0755); err != nil {
+					return err
+				}
+				for _, se := range snippetEntries {
+					src := "templates/snippets/" + se.Name()
+					dst := filepath.Join(snipDst, se.Name())
+					if err := ensureFile(assets.Templates, src, dst); err != nil {
+						return fmt.Errorf("スニペット %s の展開に失敗: %w", se.Name(), err)
+					}
+				}
+			}
+			continue
+		}
+		src := "templates/" + entry.Name()
+		dst := filepath.Join(dstDir, entry.Name())
+		if err := ensureFile(assets.Templates, src, dst); err != nil {
+			return fmt.Errorf("テンプレート %s の展開に失敗: %w", entry.Name(), err)
 		}
 	}
 

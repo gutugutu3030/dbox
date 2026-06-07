@@ -30,13 +30,13 @@ type TemplateConfig struct {
 
 // ProjectConfig はプロジェクトルートの .dbox.yaml の構造体
 type ProjectConfig struct {
-	Version      int              `yaml:"version"`
-	Agent        string           `yaml:"agent"`
-	Lang         string           `yaml:"lang"`
-	Template     string           `yaml:"template"`
-	SandboxName  string           `yaml:"sandbox_name"`
-	Clone        bool             `yaml:"clone"`
-	Resources    ResourceConfig   `yaml:"resources"`
+	Version     int            `yaml:"version"`
+	Agent       string         `yaml:"agent"`
+	Langs       []string       `yaml:"langs"`
+	Template    string         `yaml:"template"`
+	SandboxName string         `yaml:"sandbox_name"`
+	Clone       bool           `yaml:"clone"`
+	Resources   ResourceConfig `yaml:"resources"`
 }
 
 // ResourceConfig はサンドボックスのリソース制限を定義
@@ -61,13 +61,13 @@ func DefaultGlobalConfig() *GlobalConfig {
 // DefaultProjectConfig はプロジェクト設定の既定値を返す
 func DefaultProjectConfig() *ProjectConfig {
 	return &ProjectConfig{
-		Version: 1,
+		Version: 2,
 		Agent:   "opencode",
-		Lang:    "base",
+		Langs:   []string{"base"},
 		Clone:   false,
 		Resources: ResourceConfig{
 			CPUs:   0,
-			Memory: "50%",
+			Memory: "",
 		},
 	}
 }
@@ -170,6 +170,12 @@ func LoadProjectConfig(dir string) (*ProjectConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("プロジェクト設定のパースに失敗: %w", err)
 	}
+
+	// version 1 の設定（単一言語 lang: node）を version 2 に変換
+	if cfg.Version == 1 {
+		cfg.Version = 2
+	}
+
 	return &cfg, nil
 }
 

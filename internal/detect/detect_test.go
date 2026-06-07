@@ -37,12 +37,9 @@ func TestDetectByConfig_Node(t *testing.T) {
 		infos = append(infos, info)
 	}
 
-	lang, confidence := DetectByConfig(infos)
-	if lang != LanguageNode {
-		t.Errorf("DetectByConfig() = %q, want %q", lang, LanguageNode)
-	}
-	if confidence != 1.0 {
-		t.Errorf("confidence = %f, want 1.0", confidence)
+	langs := DetectByConfig(infos)
+	if len(langs) != 1 || langs[0] != LanguageNode {
+		t.Errorf("DetectByConfig() = %v, want [node]", langs)
 	}
 }
 
@@ -56,9 +53,9 @@ func TestDetectByConfig_Python(t *testing.T) {
 		infos = append(infos, info)
 	}
 
-	lang, _ := DetectByConfig(infos)
-	if lang != LanguagePython {
-		t.Errorf("DetectByConfig() = %q, want %q", lang, LanguagePython)
+	langs := DetectByConfig(infos)
+	if len(langs) != 1 || langs[0] != LanguagePython {
+		t.Errorf("DetectByConfig() = %v, want [python]", langs)
 	}
 }
 
@@ -72,13 +69,42 @@ func TestDetectByConfig_Go(t *testing.T) {
 		infos = append(infos, info)
 	}
 
-	lang, _ := DetectByConfig(infos)
-	if lang != LanguageGo {
-		t.Errorf("DetectByConfig() = %q, want %q", lang, LanguageGo)
+	langs := DetectByConfig(infos)
+	if len(langs) != 1 || langs[0] != LanguageGo {
+		t.Errorf("DetectByConfig() = %v, want [go]", langs)
 	}
 }
 
-// TestDetectByConfig_Empty は該当ファイルがない場合に LanguageBase を返すことを確認する
+// TestDetectByConfig_Multi は package.json と go.mod の両方から node と go を検出できることを確認する
+func TestDetectByConfig_Multi(t *testing.T) {
+	dir := tempDirWithFiles(t, []string{"package.json", "go.mod", "main.go"})
+	entries, _ := os.ReadDir(dir)
+	infos := make([]os.FileInfo, 0, len(entries))
+	for _, e := range entries {
+		info, _ := e.Info()
+		infos = append(infos, info)
+	}
+
+	langs := DetectByConfig(infos)
+	if len(langs) != 2 {
+		t.Fatalf("DetectByConfig() = %v, want 2 languages", langs)
+	}
+
+	hasNode, hasGo := false, false
+	for _, l := range langs {
+		if l == LanguageNode {
+			hasNode = true
+		}
+		if l == LanguageGo {
+			hasGo = true
+		}
+	}
+	if !hasNode || !hasGo {
+		t.Errorf("DetectByConfig() に node または go が含まれていません: %v", langs)
+	}
+}
+
+// TestDetectByConfig_Empty は該当ファイルがない場合に空スライスを返すことを確認する
 func TestDetectByConfig_Empty(t *testing.T) {
 	dir := tempDirWithFiles(t, []string{"README.md", "LICENSE"})
 	entries, _ := os.ReadDir(dir)
@@ -88,9 +114,9 @@ func TestDetectByConfig_Empty(t *testing.T) {
 		infos = append(infos, info)
 	}
 
-	lang, _ := DetectByConfig(infos)
-	if lang != LanguageBase {
-		t.Errorf("DetectByConfig() = %q, want %q", lang, LanguageBase)
+	langs := DetectByConfig(infos)
+	if len(langs) != 0 {
+		t.Errorf("DetectByConfig() = %v, want empty", langs)
 	}
 }
 
@@ -103,12 +129,9 @@ func TestDetectByExtension_Node(t *testing.T) {
 		"README.md",
 	})
 
-	lang, confidence := DetectByExtension(dir)
-	if lang != LanguageNode {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageNode)
-	}
-	if confidence <= 0.5 {
-		t.Errorf("confidence = %f, want > 0.5", confidence)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageNode {
+		t.Errorf("DetectByExtension() = %v, want [node]", langs)
 	}
 }
 
@@ -121,9 +144,9 @@ func TestDetectByExtension_Python(t *testing.T) {
 		"README.md",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguagePython {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguagePython)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguagePython {
+		t.Errorf("DetectByExtension() = %v, want [python]", langs)
 	}
 }
 
@@ -135,9 +158,9 @@ func TestDetectByExtension_Go(t *testing.T) {
 		"go.mod",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageGo {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageGo)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageGo {
+		t.Errorf("DetectByExtension() = %v, want [go]", langs)
 	}
 }
 
@@ -149,9 +172,9 @@ func TestDetectByExtension_Rust(t *testing.T) {
 		"Cargo.toml",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageRust {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageRust)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageRust {
+		t.Errorf("DetectByExtension() = %v, want [rust]", langs)
 	}
 }
 
@@ -163,9 +186,9 @@ func TestDetectByExtension_Java(t *testing.T) {
 		"pom.xml",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageJava {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageJava)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageJava {
+		t.Errorf("DetectByExtension() = %v, want [java]", langs)
 	}
 }
 
@@ -177,13 +200,13 @@ func TestDetectByExtension_Ruby(t *testing.T) {
 		"Gemfile",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageRuby {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageRuby)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageRuby {
+		t.Errorf("DetectByExtension() = %v, want [ruby]", langs)
 	}
 }
 
-// TestDetectByExtension_Base は該当拡張子がない場合に LanguageBase を返すことを確認する
+// TestDetectByExtension_Base は該当拡張子がない場合に空スライスを返すことを確認する
 func TestDetectByExtension_Base(t *testing.T) {
 	dir := tempDirWithFiles(t, []string{
 		"README.md",
@@ -191,19 +214,19 @@ func TestDetectByExtension_Base(t *testing.T) {
 		"LICENSE",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageBase {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageBase)
+	langs := DetectByExtension(dir)
+	if len(langs) != 0 {
+		t.Errorf("DetectByExtension() = %v, want empty", langs)
 	}
 }
 
-// TestDetectByExtension_EmptyDir は空ディレクトリで LanguageBase を返すことを確認する
+// TestDetectByExtension_EmptyDir は空ディレクトリで空スライスを返すことを確認する
 func TestDetectByExtension_EmptyDir(t *testing.T) {
 	dir := tempDirWithFiles(t, nil)
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageBase {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageBase)
+	langs := DetectByExtension(dir)
+	if len(langs) != 0 {
+		t.Errorf("DetectByExtension() = %v, want empty", langs)
 	}
 }
 
@@ -212,14 +235,13 @@ func TestDetectByExtension_SkipNodeModules(t *testing.T) {
 	dir := tempDirWithFiles(t, []string{
 		"package.json",
 		"src/index.ts",
-		// node_modules 以下はスキャンされない
 		"node_modules/some-pkg/index.js",
 		"node_modules/some-pkg/dist/main.js",
 	})
 
-	lang, _ := DetectByExtension(dir)
-	if lang != LanguageNode {
-		t.Errorf("DetectByExtension() = %q, want %q", lang, LanguageNode)
+	langs := DetectByExtension(dir)
+	if len(langs) != 1 || langs[0] != LanguageNode {
+		t.Errorf("DetectByExtension() = %v, want [node]", langs)
 	}
 }
 
@@ -232,8 +254,26 @@ func TestDetect_ByConfig(t *testing.T) {
 	})
 
 	result := Detect(dir)
-	if result.Language != LanguageNode {
-		t.Errorf("Detect() = %q, want %q (configファイル優先)", result.Language, LanguageNode)
+	if len(result.Languages) != 1 || result.Languages[0] != LanguageNode {
+		t.Errorf("Detect() = %v, want [node] (configファイル優先)", result.Languages)
+	}
+}
+
+// TestDetect_ByConfig_Multi は複数の設定ファイルから複数言語を検出する
+func TestDetect_ByConfig_Multi(t *testing.T) {
+	dir := tempDirWithFiles(t, []string{
+		"package.json",
+		"go.mod",
+		"main.go",
+		"index.ts",
+	})
+
+	result := Detect(dir)
+	if len(result.Languages) != 2 {
+		t.Fatalf("Detect() = %v, want 2 languages", result.Languages)
+	}
+	if result.TemplateName != "dbox-go-node" {
+		t.Errorf("TemplateName = %q, want %q", result.TemplateName, "dbox-go-node")
 	}
 }
 
@@ -246,11 +286,27 @@ func TestDetect_ByExtension(t *testing.T) {
 	})
 
 	result := Detect(dir)
-	if result.Language != LanguagePython {
-		t.Errorf("Detect() = %q, want %q", result.Language, LanguagePython)
+	if len(result.Languages) != 1 || result.Languages[0] != LanguagePython {
+		t.Errorf("Detect() = %v, want [python]", result.Languages)
 	}
 	if result.TemplateName != "dbox-python" {
 		t.Errorf("TemplateName = %q, want %q", result.TemplateName, "dbox-python")
+	}
+}
+
+// TestDetect_NoLanguage は該当がない場合に base を返す
+func TestDetect_NoLanguage(t *testing.T) {
+	dir := tempDirWithFiles(t, []string{
+		"README.md",
+		"LICENSE",
+	})
+
+	result := Detect(dir)
+	if len(result.Languages) != 1 || result.Languages[0] != LanguageBase {
+		t.Errorf("Detect() = %v, want [base]", result.Languages)
+	}
+	if result.TemplateName != "dbox-base" {
+		t.Errorf("TemplateName = %q, want %q", result.TemplateName, "dbox-base")
 	}
 }
 
@@ -275,6 +331,63 @@ func TestTemplateNameForLang(t *testing.T) {
 			got := TemplateNameForLang(tt.lang)
 			if got != tt.expected {
 				t.Errorf("TemplateNameForLang(%q) = %q, want %q", tt.lang, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestTemplateNameForLangs は複数言語のテンプレート名を確認する
+func TestTemplateNameForLangs(t *testing.T) {
+	tests := []struct {
+		name     string
+		langs    []Language
+		expected string
+	}{
+		{"単一言語: node", []Language{LanguageNode}, "dbox-node"},
+		{"単一言語: go", []Language{LanguageGo}, "dbox-go"},
+		{"複数言語: go+node", []Language{LanguageGo, LanguageNode}, "dbox-go-node"},
+		{"複数言語: node+go（逆順）", []Language{LanguageNode, LanguageGo}, "dbox-go-node"},
+		{"base のみ", []Language{LanguageBase}, "dbox-base"},
+		{"base + 言語", []Language{LanguageBase, LanguageNode}, "dbox-node"},
+		{"空", nil, "dbox-base"},
+		{"重複除去", []Language{LanguageNode, LanguageNode, LanguageGo}, "dbox-go-node"},
+		{"3言語", []Language{LanguageRuby, LanguageGo, LanguageNode}, "dbox-go-node-ruby"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TemplateNameForLangs(tt.langs)
+			if got != tt.expected {
+				t.Errorf("TemplateNameForLangs(%v) = %q, want %q", tt.langs, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestLangsFromString はカンマ区切り文字列のパースを確認する
+func TestLangsFromString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Language
+	}{
+		{"単一言語", "node", []Language{LanguageNode}},
+		{"複数言語", "go,node", []Language{LanguageGo, LanguageNode}},
+		{"スペース混じり", "go, node", []Language{LanguageGo, LanguageNode}},
+		{"未知の言語も含む", "node,unknown", []Language{LanguageNode}},
+		{"base", "base", []Language{LanguageBase}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := LangsFromString(tt.input)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("LangsFromString(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("LangsFromString(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.expected[i])
+				}
 			}
 		})
 	}

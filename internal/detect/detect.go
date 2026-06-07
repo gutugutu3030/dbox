@@ -68,11 +68,10 @@ var detectionRules = []LangConfig{
 	},
 }
 
-// Result は言語検出の結果を保持する
-type Result struct {
-	Language     Language
+// MultiResult は多言語検出の結果を保持する
+type MultiResult struct {
+	Languages    []Language
 	TemplateName string
-	Confidence   float64 // 0.0 ~ 1.0
 }
 
 // AllTemplates は定義済みの全テンプレート名を返す
@@ -86,7 +85,7 @@ func AllTemplates() []string {
 	return names
 }
 
-// TemplateNameForLang は言語に対応するテンプレート名を返す
+// TemplateNameForLang は単一言語に対応するテンプレート名を返す
 func TemplateNameForLang(lang Language) string {
 	for _, rule := range detectionRules {
 		if rule.Language == lang {
@@ -96,23 +95,69 @@ func TemplateNameForLang(lang Language) string {
 	return "dbox-base"
 }
 
-// DetectByConfig は設定ファイルの存在に基づいて言語を検出する
-func DetectByConfig(files []os.FileInfo) (Language, float64) {
+// TemplateNameForLangs は複数言語に対応するテンプレート名を返す。
+// 言語をアルファベット順にソートし "dbox-<lang1>-<lang2>" の形式で返す
+func TemplateNameForLangs(langs []Language) string {
+	if len(langs) == 0 {
+		return "dbox-base"
+	}
+
+	// base 以外の言語だけ抽出
+	filtered := make([]Language, 0, len(langs))
+	for _, lang := range langs {
+		if lang != LanguageBase {
+			filtered = append(filtered, lang)
+		}
+	}
+	if len(filtered) == 0 {
+		return "dbox-base"
+	}
+
+	// アルファベット順にソート
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i] < filtered[j]
+	})
+
+	// 重複除去
+	uniq := make([]Language, 0, len(filtered))
+	seen := make(map[Language]bool)
+	for _, lang := range filtered {
+		if !seen[lang] {
+			seen[lang] = true
+			uniq = append(uniq, lang)
+		}
+	}
+
+	names := make([]string, len(uniq))
+	for i, lang := range uniq {
+		names[i] = string(lang)
+	}
+	return "dbox-" + strings.Join(names, "-")
+}
+
+// DetectByConfig は設定ファイルの存在に基づいて言語を検出する。
+// マッチした言語を全て返す（base は含まない）
+func DetectByConfig(files []os.FileInfo) []Language {
+	var detected []Language
 	for _, rule := range detectionRules {
 		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
 			for _, cfgFile := range rule.ConfigFiles {
 				if file.Name() == cfgFile {
-					return rule.Language, 1.0
+					detected = append(detected, rule.Language)
+					break
 				}
 			}
 		}
 	}
-	return LanguageBase, 0.0
+	return detected
 }
 
 // DetectByExtension は拡張子に基づいて言語を検出する。
-// 指定ディレクトリを走査し、一番多く出現した拡張子に対応する言語を返す
-func DetectByExtension(root string) (Language, float64) {
+// 閾値（全ファイルの5%）以上のスコアを持つ言語を全て返す
+func DetectByExtension(root string) []Language {
 	extCount := make(map[string]int)
 	totalFiles := 0
 
@@ -121,7 +166,6 @@ func DetectByExtension(root string) (Language, float64) {
 			return nil
 		}
 		if info.IsDir() {
-			// node_modules, .git などのディレクトリはスキップ
 			base := info.Name()
 			if base == "node_modules" || base == ".git" || base == "target" ||
 				base == "vendor" || base == ".venv" || base == "__pycache__" ||
@@ -140,7 +184,7 @@ func DetectByExtension(root string) (Language, float64) {
 	})
 
 	if totalFiles == 0 {
-		return LanguageBase, 0.0
+		return nil
 	}
 
 	// 言語ごとに該当拡張子の出現数を集計
@@ -156,29 +200,30 @@ func DetectByExtension(root string) (Language, float64) {
 	}
 
 	if len(langScore) == 0 {
-		return LanguageBase, 0.0
+		return nil
 	}
 
-	// 最高スコアの言語を特定
-	bestLang := LanguageBase
-	bestScore := 0
+	// 閾値（5%）以上のスコアを持つ言語を抽出
+	threshold := 0.05
+	var detected []Language
 	for lang, score := range langScore {
-		if score > bestScore {
-			bestLang = lang
-			bestScore = score
+		if float64(score)/float64(totalFiles) >= threshold {
+			detected = append(detected, lang)
 		}
 	}
 
-	confidence := float64(bestScore) / float64(totalFiles)
-	return bestLang, confidence
+	return detected
 }
 
 // Detect は設定ファイルと拡張子の両方を使って言語を検出する。
-// 設定ファイルによる検出を最優先する
-func Detect(root string) Result {
+// 設定ファイルによる検出を最優先し、なければ拡張子ベースにフォールバックする
+func Detect(root string) MultiResult {
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return Result{Language: LanguageBase, TemplateName: "dbox-base", Confidence: 0.0}
+		return MultiResult{
+			Languages:    []Language{LanguageBase},
+			TemplateName: "dbox-base",
+		}
 	}
 
 	// os.FileInfo のスライスに変換
@@ -192,20 +237,40 @@ func Detect(root string) Result {
 	}
 
 	// 設定ファイルベースの検出（優先）
-	lang, confidence := DetectByConfig(infos)
-	if lang != LanguageBase {
-		return Result{
-			Language:     lang,
-			TemplateName: TemplateNameForLang(lang),
-			Confidence:   confidence,
-		}
+	langs := DetectByConfig(infos)
+	if len(langs) == 0 {
+		// 拡張子ベースの検出（フォールバック）
+		langs = DetectByExtension(root)
 	}
 
-	// 拡張子ベースの検出（フォールバック）
-	lang, confidence = DetectByExtension(root)
-	return Result{
-		Language:     lang,
-		TemplateName: TemplateNameForLang(lang),
-		Confidence:   confidence,
+	if len(langs) == 0 {
+		langs = []Language{LanguageBase}
 	}
+
+	return MultiResult{
+		Languages:    langs,
+		TemplateName: TemplateNameForLangs(langs),
+	}
+}
+
+// LangsFromString はカンマ区切りの言語文字列を Language スライスに変換する
+func LangsFromString(s string) []Language {
+	parts := strings.Split(s, ",")
+	langs := make([]Language, 0, len(parts))
+	seen := make(map[Language]bool)
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		lang := Language(p)
+		if seen[lang] {
+			continue
+		}
+		seen[lang] = true
+		if TemplateNameForLang(lang) != "dbox-base" || lang == LanguageBase {
+			langs = append(langs, lang)
+		}
+	}
+	return langs
 }

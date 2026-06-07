@@ -156,13 +156,13 @@ func TestDryRunMode(t *testing.T) {
 		t.Errorf("TemplateList() with DryRun エラー: %v", err)
 	}
 
-	// TemplateSave
-	_, err = r.TemplateSave("test:latest")
+	// TemplateSave (DryRun)
+	err = r.TemplateSave("dbox-test:latest")
 	if err != nil {
 		t.Errorf("TemplateSave() with DryRun エラー: %v", err)
 	}
 
-	// HasTemplate
+	// HasTemplate (DryRun)
 	_, err = r.HasTemplate("dbox-base")
 	if err != nil {
 		t.Errorf("HasTemplate() with DryRun エラー: %v", err)

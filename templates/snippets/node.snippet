@@ -1,6 +1,3 @@
-FROM dbox-base:latest
-
-# Node.js のインストール
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - \
     && sudo apt-get install -y nodejs \
     && sudo rm -rf /var/lib/apt/lists/*
